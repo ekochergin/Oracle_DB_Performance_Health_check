@@ -1,12 +1,11 @@
 -- 12.1
 
 declare 
-  -- CSS starts
-  l_css varchar2(32000) := 'div.popup{ display: none; }';
-  -- CSS end
+  l_css varchar2(32767);
+  l_js varchar2(32767);
 
   /*
-  prints head and title tags. all the JS and the CSS goes here
+  prints head and title tags. all the CSS goes here
   p_title_name is the value that goes into <title> tag
   */
   procedure print_header(p_title_name in varchar2)
@@ -18,7 +17,7 @@ declare
     dbms_output.put_line(htf.headClose);
   exception
     when others then
-      dbms_output.put_line('An error while printing head of the document: ' || sqlerrm);
+      dbms_output.put_line('<div class="error">An error occured while printing head of the document: ' || sqlerrm || '</div>');
   end;
   
   /*
@@ -31,12 +30,6 @@ declare
     binds_div varchar2(32000);
   begin
 
-  /*  select '<div id="binds-' || bc.sql_id || '-' || bc.child_address || '" class="binds popup">' ||
-           listagg( case bc.was_captured
-                   when 'YES' then 
-                     bc.name || '(' || bc.datatype_string || '): ' || bc.value_string || ';' || chr(10)
-                   else '' end) within group(order by bc.name) ||
-           '</div>' || chr(10) */
     select listagg( case bc.was_captured
                    when 'YES' then 
                      bc.name || '(' || bc.datatype_string || '): ' || bc.value_string || ';' || chr(10)
@@ -53,7 +46,7 @@ declare
     when no_data_found then
       return ' ';
     when others then
-      dbms_output.put_line('Error while getting binds for sql_id: ' ||p_sqlid || ', child_address: ' || p_child_address || '. Error text: ' ||sqlerrm);
+      dbms_output.put_line('<div class="error">Error while getting binds for sql_id: ' ||p_sqlid || ', child_address: ' || p_child_address || '. Error text: ' ||sqlerrm || '</div>');
       return ' ';
   end get_binds;
   
@@ -117,14 +110,15 @@ declare
     -- cursor to show sqls' performance statistics. 
     cursor stats_data(p_order_by in varchar2) is
       select '<tr>' ||
-             '<td>' || s.sql_id || '</td>' ||
-             '<td>' || s.child_address || '</td>' ||
+             '<td class="left-align">' || s.sql_id || '</td>' ||
+             '<td class="left-align">' || s.child_address || '</td>' ||
              '<td>' || s.END_OF_FETCH_COUNT || '</td>' ||
              '<td>' || round(s.elapsed_time / s.END_OF_FETCH_COUNT) * 1000000 || '</td>' ||
              '<td>' || round(s.disk_reads / s.END_OF_FETCH_COUNT) || '</td>' || 
              '<td>' || round(s.buffer_gets / s.END_OF_FETCH_COUNT) || '</td>' ||
              '<td>' || round(s.cpu_time / s.END_OF_FETCH_COUNT) || '</td>' ||
-             '<td>' || s.module || '</td>' ||
+             '<td class="left-align">' || s.module || '</td>' ||
+             '<td><a href="#" onclick="show_info(''' || s.sql_id || ''', ''' || s.child_address || ''')">Show info</a></td>' ||
              '</tr>' as val,
              s.sql_fulltext,
              s.sql_id,
@@ -147,7 +141,7 @@ declare
     l_child_address v$sql.child_address%type;
   begin
     dbms_output.put_line('<table id="sql_perf_' || p_stat_name || '" class="sql_perf result-table">');
-    dbms_output.put_line('<tr><th>sql_id</th><th>child_address</th><th>exec. count</th><th>avg elapsed time, sec</th><th>avg disk reads</th><th>avg logical reads</th><th>avg cpu usage</th><th>module name</th></tr>');
+    dbms_output.put_line('<thead><tr><th>sql_id</th><th>child_address</th><th>exec. count</th><th>avg elapsed time, sec</th><th>avg disk reads</th><th>avg logical reads</th><th>avg cpu usage</th><th>module name</th><th>Info</th</tr></thead>');
     for line in stats_data(p_stat_name) loop
       l_current_sql_id := line.sql_id;
       l_child_address := line.child_address;
@@ -168,19 +162,71 @@ declare
     print_clob(queries);
   exception
     when others then
-      dbms_output.put_line('--------------------');
+      dbms_output.put_line('<div class="error">');
       dbms_output.put_line('Error in print_perf_stats_data: ' || sqlerrm);
-      dbms_output.put_line('Parameters:');
-      dbms_output.put_line('  p_stat_name: ' || p_stat_name || ';' || chr(10) || 
-                           '  sql_id: '|| l_current_sql_id || ';' || chr(10) ||
-                           '  child_address: ' || l_child_address ||';');
+      dbms_output.put_line('<p>Parameters:</p>');
+      dbms_output.put_line('<p>  p_stat_name: ' || p_stat_name || ';</p>' || chr(10) ||
+                           '<p>  sql_id: '|| l_current_sql_id || ';</p>' || chr(10) ||
+                           '<p>  child_address: ' || l_child_address ||';</p>');
   end;
 
 begin
+  -- CSS starts
+  l_css := 'div.popup-back{ display: none; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; z-index: 1;}';
+  l_css := l_css || 'div.popup{ display: none; position: fixed; z-index: 1; overflow: auto; /* this enables scroll */ width: 70%; height: 70%; background-color: #e4f5c4; top: 15%; left: 15%; border-radius: 0.5em; padding: 1em;}';
+  l_css := l_css || 'div.popup-show{ display: block;}';
+  l_css := l_css || 'h3{ margin-bottom: 1em; font-weight: bold; text-align: center;}';
+  l_css := l_css || 'table{ margin-left: auto; margin-right: auto; width: 80%; border-collapse: collapse;}';
+  l_css := l_css || 'tr{ margin-bottom: 1em;}';
+  l_css := l_css || 'tr:nth-of-type(even) { background-color: #98c2c2;}';  
+  l_css := l_css || 'th{ background-color: #d46a6a; text-align: center; padding: 0.5em; vertical-align: middle; color: white;}';
+  l_css := l_css || 'td{ text-align: right; padding: 0.5em;}';
+  l_css := l_css || 'td.left-align{ text-align: left;}';
+  l_css := l_css || 'td:last-of-type { text-align: center;}';
+  -- CSS ends
+  
+  -- JS starts
+  l_js := 
+  'let activePopup; let scrollY; let backDiv = document.getElementById("popup-background");
+
+  window.onclick = function(event){
+    if (activePopup) { //if activePopup is not empty
+      if (event.target != activePopup){
+        backDiv.classList.remove("popup-show"); // show background dark
+        activePopup.classList.remove("popup-show"); // show popup div
+        activePopup = null; //empty popup
+        backDiv.removeChild(backDiv.childNodes[0]); // empty backDiv
+        document.body.style.overflowY = ""; // return scrollbar back
+        window.scrollTo(0, scrollY); // return scroll to the position user scrolled before open popup
+      }
+    }
+  }
+  function show_info(sqlId, childAddress){
+    window.event.cancelBubble = true; // prevents event from bubbling up, the window.onclick won''t fire
+    activePopup = document.getElementById("sql-" + sqlId + "-" + childAddress)
+
+    document.body.style.overflowY = "hidden"; // prevents body from scrolling when popup is active
+    
+    // save vertical scroll offset
+    let nav = navigator.userAgent;
+    if (nav.indexOf("MSIE ") > -1 || nav.indexOf("Trident/") > -1){ // if IE
+      scrollY = window.pageYOffset;
+    }else {
+      scrollY = window.scrollY;
+    }
+
+    backDiv.appendChild(activePopup);
+    backDiv.classList.add("popup-show");
+
+    activePopup.classList.add("popup-show");
+  }';
+  -- JS ends
+
   dbms_output.put_line('<!DOCTYPE html><html>');
   print_header(p_title_name => 'DB Report');
 
   dbms_output.put_line('<body>');  
+    dbms_output.put_line('<div id="popup-background" class="popup-back"></div>'); -- div to be shown as popup's background
     -- sql performance stats
     dbms_output.put_line('<h2> Queries resource usage statistics </h2>');
     dbms_output.put_line('<h3> ordered by time consumed </h3>');
@@ -191,5 +237,6 @@ begin
     print_perf_stats_data('logical_reads');
     dbms_output.put_line('<h3> ordered by cpu consumed </h3>');    
     print_perf_stats_data('cpu');
+  dbms_output.put_line(htf.script(l_js)); -- appends JS code
   dbms_output.put_line('</body></html>');
 end;
