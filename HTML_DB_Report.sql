@@ -118,7 +118,7 @@ declare
              '<td>' || round(s.buffer_gets / s.END_OF_FETCH_COUNT) || '</td>' ||
              '<td>' || round(s.cpu_time / s.END_OF_FETCH_COUNT) || '</td>' ||
              '<td class="left-align">' || s.module || '</td>' ||
-             '<td><a href="#" onclick="show_info(''' || s.sql_id || ''', ''' || s.child_address || ''')">Show info</a></td>' ||
+             '<td><a href="#" onclick="gather_info(''' || s.sql_id || ''', ''' || s.child_address || ''')">Show info</a></td>' ||
              '</tr>' as val,
              s.sql_fulltext,
              s.sql_id,
@@ -150,12 +150,12 @@ declare
       -- checks whether there are values for bind variables captured. saves them in a separate div if yes.
       l_query_binds := get_binds(line.sql_id, line.child_address);      
       if length(l_query_binds) > 1 then
-        l_all_binds := l_all_binds || '<div id="binds-' || line.sql_id || '-' || line.child_address || '" class="bind-values popup">' || l_query_binds || '</div>';
+        l_all_binds := l_all_binds || '<div id="binds-' || line.sql_id || '-' || line.child_address || '" class="hidden">' /*'" class="bind-values popup">'*/ || l_query_binds || '</div>';
       end if;
       l_query_binds := '';
       
       -- saves query text into a standalone div in a clob where other sqls are being stored
-      queries := queries || '<div id="sql-' || line.sql_id || '-' || line.child_address || '" class="query-text popup" >' || escape_html_clob(line.sql_fulltext) || '</div>' || chr(10);
+      queries := queries || '<div id="sql-' || line.sql_id || '-' || line.child_address || '" class="hidden">' /*'" class="query-text popup" >'*/ || escape_html_clob(line.sql_fulltext) || '</div>' || chr(10);
     end loop;
     dbms_output.put_line('</table>');
     dbms_output.put_line(l_all_binds);
@@ -172,14 +172,16 @@ declare
 
 begin
   -- CSS starts
-  l_css := 'div.popup-back{ display: none; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; z-index: 1;}';
-  l_css := l_css || 'div.popup{ display: none; position: fixed; z-index: 1; overflow: auto; /* this enables scroll */ width: 70%; height: 70%; background-color: #e4f5c4; top: 15%; left: 15%; border-radius: 0.5em; padding: 1em;}';
+  l_css := 'div.popup-back{ width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; z-index: 1;}';
+  l_css := l_css || 'div.hidden{ display: none;}';
+  l_css := l_css || 'div.visible{ display: block;}';
+  l_css := l_css || 'div.popup{ position: fixed; z-index: 1; overflow: auto; /* this enables scroll */ width: 70%; height: 70%; background-color: #e4f5c4; top: 15%; left: 15%; border-radius: 0.5em; padding: 1em;}';
   l_css := l_css || 'div.popup-show{ display: block;}';
   l_css := l_css || 'h3{ margin-bottom: 1em; font-weight: bold; text-align: center;}';
   l_css := l_css || 'table{ margin-left: auto; margin-right: auto; width: 80%; border-collapse: collapse;}';
   l_css := l_css || 'tr{ margin-bottom: 1em;}';
-  l_css := l_css || 'tr:nth-of-type(even) { background-color: #98c2c2;}';  
-  l_css := l_css || 'th{ background-color: #d46a6a; text-align: center; padding: 0.5em; vertical-align: middle; color: white;}';
+  l_css := l_css || 'tr:nth-of-type(even) { background-color: #DDDDF5;}';  
+  l_css := l_css || 'th{ background-color: #055190; text-align: center; padding: 0.5em; vertical-align: middle; color: white;}';
   l_css := l_css || 'td{ text-align: right; padding: 0.5em;}';
   l_css := l_css || 'td.left-align{ text-align: left;}';
   l_css := l_css || 'td:last-of-type { text-align: center;}';
@@ -192,8 +194,7 @@ begin
   window.onclick = function(event){
     if (activePopup) { //if activePopup is not empty
       if (event.target != activePopup){
-        backDiv.classList.remove("popup-show"); // show background dark
-        activePopup.classList.remove("popup-show"); // show popup div
+        popup_hide();
         activePopup = null; //empty popup
         backDiv.removeChild(backDiv.childNodes[0]); // empty backDiv
         document.body.style.overflowY = ""; // return scrollbar back
@@ -201,12 +202,22 @@ begin
       }
     }
   }
-  function show_info(sqlId, childAddress){
-    window.event.cancelBubble = true; // prevents event from bubbling up, the window.onclick won''t fire
-    activePopup = document.getElementById("sql-" + sqlId + "-" + childAddress)
+  function gather_info(sqlId, childAddress){
+    window.event.cancelBubble = true; // prevents event from bubbling up, the window.onclick will not fire
+
+    // gather active popup content
+    activePopup = document.createElement("div");
+    activePopup.innerHTML = document.getElementById("sql-" + sqlId + "-" + childAddress).innerHTML + "<hr>"
+    if(document.getElementById("binds-" + sqlId + "-" + childAddress)){
+      activePopup.innerHTML += document.getElementById("binds-" + sqlId + "-" + childAddress).innerHTML;
+    }else{
+      activePopup.innerHTML += "<p> No binds captured";
+    };
+    activePopup.classList.add("popup");
+    activePopup.classList.add("visible");
 
     document.body.style.overflowY = "hidden"; // prevents body from scrolling when popup is active
-    
+
     // save vertical scroll offset
     let nav = navigator.userAgent;
     if (nav.indexOf("MSIE ") > -1 || nav.indexOf("Trident/") > -1){ // if IE
@@ -216,9 +227,17 @@ begin
     }
 
     backDiv.appendChild(activePopup);
-    backDiv.classList.add("popup-show");
+    popup_show();
 
-    activePopup.classList.add("popup-show");
+    activePopup.classList.add("visible");
+  }
+  function popup_show(){
+    backDiv.classList.remove("hidden");
+    backDiv.classList.add("visible");
+  }
+  function popup_hide(){
+    backDiv.classList.remove("visible");
+    backDiv.classList.add("hidden");
   }';
   -- JS ends
 
@@ -226,7 +245,7 @@ begin
   print_header(p_title_name => 'DB Report');
 
   dbms_output.put_line('<body>');  
-    dbms_output.put_line('<div id="popup-background" class="popup-back"></div>'); -- div to be shown as popup's background
+    dbms_output.put_line('<div id="popup-background" class="popup-back hidden"></div>'); -- div to be shown as popup's background
     -- sql performance stats
     dbms_output.put_line('<h2> Queries resource usage statistics </h2>');
     dbms_output.put_line('<h3> ordered by time consumed </h3>');
