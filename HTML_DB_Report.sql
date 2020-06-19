@@ -118,7 +118,7 @@ declare
              '<td>' || round(s.buffer_gets / s.END_OF_FETCH_COUNT) || '</td>' ||
              '<td>' || round(s.cpu_time / s.END_OF_FETCH_COUNT) || '</td>' ||
              '<td class="left-align">' || s.module || '</td>' ||
-             '<td><a href="#" onclick="gather_info(''' || s.sql_id || ''', ''' || s.child_address || ''')">Show info</a></td>' ||
+             '<td class="center-align"><a href="#" onclick="gather_info(''' || s.sql_id || ''', ''' || s.child_address || ''')">Show info</a></td>' ||
              '</tr>' as val,
              s.sql_fulltext,
              s.sql_id,
@@ -174,11 +174,15 @@ declare
   procedure print_invalid_objects
   is
     cursor c_inv_objs is
-      select '<tr><td class="left-align">' || owner || '</td><td class="left-align">' || object_name || '</td><td class="left-align">' || object_type || '</td><td class="right-align">' || last_ddl_time || '</td>' ||
-      '<td class="center-align"><a href=# onclick=''show_command("' || case object_type 
-                                                  when 'PACKAGE BODY' then 'alter package '  || owner ||'.' || object_name || ' compile body;'
-                                                  else 'alter ' || object_type || ' ' || owner ||'.' || object_name || ' compile;'
-                                                end || '")''>Command</a></td></tr>' as tr
+      select '<tr><td class="left-align">' || owner || 
+             '</td><td class="left-align">' || object_name || 
+             '</td><td class="left-align">' || object_type || 
+             '</td><td class="right-align">' || to_char(last_ddl_time, 'dd.mm.yyyy hh24:mi:ss') ||
+             '</td><td class="left-align">' || case object_type 
+                                                 when 'PACKAGE BODY' then 'alter package '  || owner ||'.' || object_name || ' compile body;'
+                                                 else 'alter ' || object_type || ' ' || owner ||'.' || object_name || ' compile;'
+                                               end || 
+             '</td></tr>' as tr
          from dba_objects
                      where status = 'INVALID';
                      
@@ -223,7 +227,6 @@ begin
   l_css := l_css || 'tr:nth-of-type(even) { background-color: #DDDDF5;}';  
   l_css := l_css || 'th{ background-color: #055190; text-align: center; padding: 0.5em; vertical-align: middle; color: white;}';
   l_css := l_css || 'td{ text-align: right; padding: 0.5em;}';
-  l_css := l_css || 'td:last-of-type { text-align: center;}';
   l_css := l_css || '.left-align{ text-align: left;}';
   l_css := l_css || '.right-align{ text-align: right;}';
   l_css := l_css || '.center-align{ text-align: center;}';
