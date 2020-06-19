@@ -17,8 +17,8 @@ declare
     dbms_output.put_line(htf.headClose);
   exception
     when others then
-      dbms_output.put_line('<div class="error">An error occured while printing head of the document: ' || sqlerrm || '</div>');
-  end;
+      dbms_output.put_line('<div class="bad-news">An error occured while printing head of the document: ' || sqlerrm || '</div>');
+  end print_header;
   
   /*
   function returns concatenated bind values captured for a query covered with div tags having a unique id
@@ -80,7 +80,7 @@ declare
   end print_clob;
   
   /*
-  
+  escapes html symbols in a clob
   */
   function escape_html_clob(p_clob in clob) return clob
   is
@@ -94,7 +94,7 @@ declare
       l_start_pos := l_start_pos + l_step;
     end loop;
     return l_result;
-  end;
+  end escape_html_clob;
   
   /*
   puts out sqls' ferormance statistic in an html table
@@ -140,7 +140,7 @@ declare
     l_current_sql_id v$sql.sql_id%type;
     l_child_address v$sql.child_address%type;
   begin
-    dbms_output.put_line('<table id="sql_perf_' || p_stat_name || '" class="sql_perf result-table">');
+    dbms_output.put_line('<table id="sql_perf_' || p_stat_name || '">');
     dbms_output.put_line('<thead><tr><th>sql_id</th><th>child_address</th><th>exec. count</th><th>avg elapsed time, sec</th><th>avg disk reads</th><th>avg logical reads</th><th>avg cpu usage</th><th>module name</th><th>Info</th</tr></thead>');
     for line in stats_data(p_stat_name) loop
       l_current_sql_id := line.sql_id;
@@ -162,20 +162,60 @@ declare
     print_clob(queries);
   exception
     when others then
-      dbms_output.put_line('<div class="error">');
+      dbms_output.put_line('<div class="bad-news">');
       dbms_output.put_line('Error in print_perf_stats_data: ' || sqlerrm);
       dbms_output.put_line('<p>Parameters:</p>');
       dbms_output.put_line('<p>  p_stat_name: ' || p_stat_name || ';</p>' || chr(10) ||
                            '<p>  sql_id: '|| l_current_sql_id || ';</p>' || chr(10) ||
                            '<p>  child_address: ' || l_child_address ||';</p>');
-  end;
+      dbms_output.put_line('</div');
+  end print_perf_stats_data;
+
+  procedure print_invalid_objects
+  is
+    cursor c_inv_objs is
+      select '<tr><td class="left-align">' || owner || '</td><td class="left-align">' || object_name || '</td><td class="left-align">' || object_type || '</td><td class="right-align">' || last_ddl_time || '</td>' ||
+      '<td class="center-align"><a href=# onclick=''show_command("' || case object_type 
+                                                  when 'PACKAGE BODY' then 'alter package '  || owner ||'.' || object_name || ' compile body;'
+                                                  else 'alter ' || object_type || ' ' || owner ||'.' || object_name || ' compile;'
+                                                end || '")''>Command</a></td></tr>' as tr
+         from dba_objects
+                     where status = 'INVALID';
+                     
+    type inv_objs_t is table of c_inv_objs%rowtype;
+    inv_objs inv_objs_t;
+  begin
+    open c_inv_objs;
+    fetch c_inv_objs bulk collect into inv_objs;
+    close c_inv_objs;
+    
+    if inv_objs.count > 1 then
+      dbms_output.put_line('<table>');
+      dbms_output.put_line('<thead><th>owner</th><th>name</th><th>type</th><th>last ddl time</th><th>How to fix</th></thead>');
+      for i in 1..inv_objs.count loop
+        dbms_output.put_line(inv_objs(i).tr);
+      end loop;
+      dbms_output.put_line('</table>');
+    else
+      dbms_output.put_line('<div id="good-news">No invalid objects found!</div>');
+    end if;
+  exception
+    when others then
+      if c_inv_objs%isopen then
+        close c_inv_objs;
+      end if;  
+    
+      dbms_output.put_line('<div class="bad-news">');
+      dbms_output.put_line('Error in print_invalid_objects: ' || sqlerrm);
+      dbms_output.put_line('</div');     
+  end print_invalid_objects;
 
 begin
   -- CSS starts
   l_css := 'div.popup-back{ width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; z-index: 1;}';
   l_css := l_css || 'div.hidden{ display: none;}';
   l_css := l_css || 'div.visible{ display: block;}';
-  l_css := l_css || 'div.popup{ position: fixed; z-index: 1; overflow: auto; /* this enables scroll */ width: 70%; height: 70%; background-color: #e4f5c4; top: 15%; left: 15%; border-radius: 0.5em; padding: 1em;}';
+  l_css := l_css || 'div.popup{ position: fixed; z-index: 1; overflow: auto; /* this enables scroll */ width: 70%; height: 70%; background-color: #fffcee; top: 15%; left: 15%; border-radius: 0.5em; padding: 1em;}';
   l_css := l_css || 'div.popup-show{ display: block;}';
   l_css := l_css || 'h3{ margin-bottom: 1em; font-weight: bold; text-align: center;}';
   l_css := l_css || 'table{ margin-left: auto; margin-right: auto; width: 80%; border-collapse: collapse;}';
@@ -183,22 +223,20 @@ begin
   l_css := l_css || 'tr:nth-of-type(even) { background-color: #DDDDF5;}';  
   l_css := l_css || 'th{ background-color: #055190; text-align: center; padding: 0.5em; vertical-align: middle; color: white;}';
   l_css := l_css || 'td{ text-align: right; padding: 0.5em;}';
-  l_css := l_css || 'td.left-align{ text-align: left;}';
   l_css := l_css || 'td:last-of-type { text-align: center;}';
+  l_css := l_css || '.left-align{ text-align: left;}';
+  l_css := l_css || '.right-align{ text-align: right;}';
+  l_css := l_css || '.center-align{ text-align: center;}';
   -- CSS ends
   
   -- JS starts
   l_js := 
-  'let activePopup; let scrollY; let backDiv = document.getElementById("popup-background");
+  'let activePopup = document.createElement("div"); let scrollY; let backDiv = document.getElementById("popup-background");
 
   window.onclick = function(event){
-    if (activePopup) { //if activePopup is not empty
+    if (activePopup.innerHTML) { //if activePopup is not empty
       if (event.target != activePopup){
         popup_hide();
-        activePopup = null; //empty popup
-        backDiv.removeChild(backDiv.childNodes[0]); // empty backDiv
-        document.body.style.overflowY = ""; // return scrollbar back
-        window.scrollTo(0, scrollY); // return scroll to the position user scrolled before open popup
       }
     }
   }
@@ -206,18 +244,29 @@ begin
     window.event.cancelBubble = true; // prevents event from bubbling up, the window.onclick will not fire
 
     // gather active popup content
-    activePopup = document.createElement("div");
-    activePopup.innerHTML = document.getElementById("sql-" + sqlId + "-" + childAddress).innerHTML + "<hr>"
-    if(document.getElementById("binds-" + sqlId + "-" + childAddress)){
-      activePopup.innerHTML += document.getElementById("binds-" + sqlId + "-" + childAddress).innerHTML;
+    activePopup.innerHTML = document.getElementById("sql-" + sqlId + "-" + childAddress).innerHTML + "<hr>";
+    let binds = document.getElementById("binds-" + sqlId + "-" + childAddress)
+    if(binds){
+      activePopup.innerHTML += binds.innerHTML;
     }else{
       activePopup.innerHTML += "<p> No binds captured";
     };
+
+    popup_show();
+  }
+  function show_command(pText){
+    window.event.cancelBubble = true;
+    activePopup.innerHTML = "<p>" + pText;
+    popup_show();
+  }
+  function popup_show(){
     activePopup.classList.add("popup");
     activePopup.classList.add("visible");
-
-    document.body.style.overflowY = "hidden"; // prevents body from scrolling when popup is active
-
+    
+    backDiv.appendChild(activePopup);
+    backDiv.classList.remove("hidden");
+    backDiv.classList.add("visible");
+    
     // save vertical scroll offset
     let nav = navigator.userAgent;
     if (nav.indexOf("MSIE ") > -1 || nav.indexOf("Trident/") > -1){ // if IE
@@ -225,19 +274,18 @@ begin
     }else {
       scrollY = window.scrollY;
     }
-
-    backDiv.appendChild(activePopup);
-    popup_show();
-
-    activePopup.classList.add("visible");
-  }
-  function popup_show(){
-    backDiv.classList.remove("hidden");
-    backDiv.classList.add("visible");
+    
+    document.body.style.overflowY = "hidden"; // prevents body from scrolling when popup is active
   }
   function popup_hide(){
+    activePopup.innerHTML = ""; //empty popup
+
+    backDiv.removeChild(backDiv.childNodes[0]); // empty backDiv
     backDiv.classList.remove("visible");
     backDiv.classList.add("hidden");
+
+    document.body.style.overflowY = ""; // return scrollbar back
+    window.scrollTo(0, scrollY); // return scroll to the position user scrolled before open popup
   }';
   -- JS ends
 
@@ -246,6 +294,11 @@ begin
 
   dbms_output.put_line('<body>');  
     dbms_output.put_line('<div id="popup-background" class="popup-back hidden"></div>'); -- div to be shown as popup's background
+
+    -- show invalid objects
+    dbms_output.put_line('<h3> Invalid objects </h3>');
+    print_invalid_objects();
+        
     -- sql performance stats
     dbms_output.put_line('<h2> Queries resource usage statistics </h2>');
     dbms_output.put_line('<h3> ordered by time consumed </h3>');
@@ -256,6 +309,7 @@ begin
     print_perf_stats_data('logical_reads');
     dbms_output.put_line('<h3> ordered by cpu consumed </h3>');    
     print_perf_stats_data('cpu');
+    
   dbms_output.put_line(htf.script(l_js)); -- appends JS code
   dbms_output.put_line('</body></html>');
 end;
