@@ -1,6 +1,8 @@
 -- 12.1
 
 declare 
+  type varchar2_t is table of varchar2(32000); -- being used in print_plsql_table function
+
   l_css varchar2(32767);
   l_js varchar2(32767);
 
@@ -97,37 +99,107 @@ declare
   end escape_html_clob;
   
   /*
-  prints a simple html-table, puts a "good-news" div when nothing found
+  a routine to print out a plsql table as an html table
   parameters: p_id - the id html tag for the table
               p_headers - a bunch of th tags to be printed within thead tag
-              p_cursor - sys_refcursor to get data. It must return just a varchar-row containing valid html table row (<tr>...</tr>)
+              p_table   - table of varchar2(32000), containing valid <tr>s only
               p_classes - list of css-classes associated with the table (varchar2, default is null)
   */
-  procedure simple_html_table(p_id in varchar2, p_headers in varchar2, p_cursor in sys_refcursor, p_classes in varchar2 default null)
+  function print_plsql_table(p_id in varchar2, p_headers in varchar2, p_table in varchar2_t, p_classes in varchar2 default null) return number
   is
-    type trs is table of varchar2(32000);
-    tr_lines trs;
   begin
-    fetch p_cursor bulk collect into tr_lines;
-    close p_cursor;
-    
-    if tr_lines.count > 0 then
+    if p_table.count > 0 then
       dbms_output.put_line('<table id="' || p_id || '" class="' || p_classes || '">');
       dbms_output.put_line('<thead>' || p_headers || '</thead>');
       dbms_output.put_line('<tbody>');
-      for i in 1..tr_lines.count loop
-        dbms_output.put_line(tr_lines(i));
+      for i in 1..p_table.count loop
+        dbms_output.put_line(p_table(i));
       end loop;
       dbms_output.put_line('</tbody></table>');
     else
       dbms_output.put_line('<div id="good-news">Nothing found!</div>');
     end if;
+    
+    return p_table.count;
+  end;
+  
+  /*
+  prints a simple html-table, puts a "good-news" div when nothing found
+  parameters: p_id - the id html tag for the table
+              p_headers - a bunch of th tags to be printed within thead tag
+              p_cursor - sys_refcursor to get data. It must return just a varchar-row containing valid html table row (<tr>...</tr>)
+              p_classes - list of css-classes associated with the table (varchar2, default is null)
+  returns rowcount of a p_cusor for further analysis if needed
+  */
+  function simple_html_table(p_id in varchar2, p_headers in varchar2, p_cursor in sys_refcursor, p_classes in varchar2 default null) return number
+  is
+    tr_lines varchar2_t;
+  begin
+    fetch p_cursor bulk collect into tr_lines;
+    close p_cursor;
+    
+    return print_plsql_table(p_id, p_headers, tr_lines, p_classes);
   exception
     when others then
       if p_cursor%isopen then
         close p_cursor;
       end if;
   end simple_html_table;
+  
+  procedure print_frag_tables
+  is
+    frag_stats varchar2_t := varchar2_t();
+    dummy number;
+  
+    unf_blocks  number;  unf_bytes  number;
+    fs1_blocks  number;  fs1_bytes  number;
+    fs2_blocks  number;  fs2_bytes  number;
+    fs3_blocks  number;  fs3_bytes  number;
+    fs4_blocks  number;  fs4_bytes  number;
+    full_blocks number;  full_bytes number;
+  begin
+    -- pick 50 most fragmented tables
+    for frag_tab in (select round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) frag_rate_pct, 
+                            dt.table_name,
+                            dt.blocks,
+                            dt.owner
+                       from dba_users u,
+                            dba_tables dt,
+                            v$parameter p
+                      where dt.owner = u.username
+                        and u.ORACLE_MAINTAINED = 'N' -- list all non-oracle users
+                        and dt.blocks > 10000 -- filter tiny tables out
+                        and dt.num_rows > 0 
+                        and dt.avg_row_len > 0
+                        and p.name = 'db_block_size'
+                        and not exists (select 1 -- since stats data are being used to find fragmented tables there is a need to exclude tables having stale stats
+                                          from dba_tab_statistics dts
+                                         where dts.stale_stats = 'YES'
+                                           and dts.table_name = dt.table_name)
+                        and round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) > 20 -- don't let table with small fragm. rate to bother us
+                      order by frag_rate_pct desc
+                      fetch first 50 rows with ties) loop
+      -- get the detailed fragmentation info
+      dbms_space.space_usage(frag_tab.owner, frag_tab.table_name, 'TABLE',
+                             unf_blocks, unf_bytes,
+                             fs1_blocks, fs1_bytes, 
+                             fs2_blocks, fs2_bytes,
+                             fs3_blocks, fs3_bytes, 
+                             fs4_blocks, fs4_bytes,
+                             full_blocks, full_bytes);     
+      -- append that data into a plsql table                     
+      frag_stats.extend;
+      frag_stats(frag_stats.count) := '<tr>' ||
+                                        '<td>' || frag_tab.owner || '</td><td>' || frag_tab.table_name || '</td><td>' || frag_tab.frag_rate_pct || '%' ||
+                                        '</td><td>' || frag_tab.blocks || '</td><td>' || unf_blocks || '</td><td>' || fs1_blocks || '</td><td>' || fs2_blocks || 
+                                        '</td><td>'  || fs3_blocks || '</td><td>' || fs4_blocks || '</td><td>' || full_blocks || '</td>' ||
+                                      '</tr>';
+    end loop;
+    
+    dummy := print_plsql_table('frag-table-stats', 
+                               '<th>owner</th><th>table name</th><th>fragmentation rate</th><th>blocks total</th><th>unformatted blocks</th><th>0-25% free blocks</th><th>25-50% free blocks</th><th>50-75% free blocks</th><th>75-100% free blocks</th><th>full blocks</th>',
+                               frag_stats);
+  end print_frag_tables;
   
   /*
   puts out sqls' performance statistic in an html table
@@ -203,34 +275,10 @@ declare
       dbms_output.put_line('</div');
   end print_perf_stats_data;
   
-  procedure print_invalid_objects
-  is
-    c_inv_objs sys_refcursor;
-  begin
-    open c_inv_objs for select '<tr><td class="left-align">'   || owner || 
-                               '</td><td class="left-align">'  || object_name || 
-                               '</td><td class="left-align">'  || object_type || 
-                               '</td><td class="right-align">' || to_char(last_ddl_time, 'dd.mm.yyyy hh24:mi:ss') ||
-                               '</td><td class="left-align">'  || case object_type 
-                                                                    when 'PACKAGE BODY' then 'alter package '  || owner ||'.' || object_name || ' compile body;'
-                                                                    else 'alter ' || lower(object_type) || ' ' || owner ||'.' || object_name || ' compile;'
-                                                                  end || 
-                               '</td></tr>' as tr
-                          from dba_objects
-                         where status = 'INVALID';
-     simple_html_table('invObjs', 
-                       '<th>owner</th><th>name</th><th>type</th><th>last ddl time</th><th>How to fix</th>',
-                       c_inv_objs);
-  exception
-    when others then 
-      dbms_output.put_line('<div class="bad-news">');
-      dbms_output.put_line('There is a following error in printing invalid objects procedure: ' || sqlerrm);
-      dbms_output.put_line('</div');   
-  end print_invalid_objects;
-  
   procedure print_stale_tables
   is 
     c_stale_tabs sys_refcursor;
+    dummy number; 
   begin
     open c_stale_tabs for select '<tr><td class="left-align">'  || owner ||
                                  '</td><td class="left-align">' || table_name ||
@@ -241,19 +289,20 @@ declare
                                  '</td></tr>'
                             from dba_tab_statistics 
                            where stale_stats = 'YES';
-    simple_html_table('staleTables', 
-                      '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
-                      c_stale_tabs);
+    dummy := simple_html_table('staleTables', 
+                               '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
+                               c_stale_tabs);
   exception
     when others then 
       dbms_output.put_line('<div class="bad-news">');
-      dbms_output.put_line('There is a following in printing stale tables procedure: ' || sqlerrm);
-      dbms_output.put_line('</div');  
+      dbms_output.put_line('There is a following error in printing stale tables procedure: ' || sqlerrm);
+      dbms_output.put_line('</div');
   end print_stale_tables;
 
   procedure print_stale_indexes
   is
     c_stale_indxs sys_refcursor;
+    dummy number;
   begin
     open c_stale_indxs for select '<tr><td class="left-align">'  || owner ||
                                   '</td><td class="left-align">' || index_name ||
@@ -267,15 +316,65 @@ declare
                                   '</td></tr>'     
                              from dba_ind_statistics 
                             where stale_stats = 'YES';
-    simple_html_table('staleIndexes',
-                      '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
-                      c_stale_indxs);
+    dummy := simple_html_table('staleIndexes',
+                               '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
+                               c_stale_indxs);
   exception
     when others then
       dbms_output.put_line('<div class="bad-news">');
       dbms_output.put_line('There is a following error in the printing stale indexes procedure: ' || sqlerrm);
       dbms_output.put_line('</div');        
   end print_stale_indexes;
+  
+  procedure print_chained_rows
+  is
+    c_chained_rows sys_refcursor;
+    row_count number;
+    chained_detected varchar2(1) := 'N';
+  begin
+    open c_chained_rows for select '<tr><td class="left-align">' || owner ||
+                                   '</td><td class="left-align">' || table_name ||
+                                   '</td><td class="center-align">' || num_rows ||
+                                   '</td><td class="center-align">' ||chain_cnt ||
+                                   '</td><td class="center-align">' ||chain_cnt/num_rows * 100 || '%' ||
+                                   '</td></tr>'
+                              from dba_tables t,
+                                   dba_users u
+                             where u.username = t.owner
+                               and u.oracle_maintained = 'N' -- show all non-oracle users
+                               and t.num_rows > 0
+                               and t.chain_cnt/t.num_rows > 0.05 -- chained ratio greater than 5%
+                             order by chain_cnt desc;
+    row_count := simple_html_table('chainedRows',
+                                   '<th>owner</th><th>table name</th><th>rows count (statistics)</th><th>chained rows count (statistics)</th><th>chained rows ratio</th>',
+                                   c_chained_rows);
+    -- there is another thing to check if there were no chained/migrated rows detected
+    if row_count = 0 then
+      begin
+        select 'Y'
+          into chained_detected
+          from v$sysstat 
+         where name = 'table fetch continued row'
+           and value > 0;
+      exception
+        when others then 
+          chained_detected := 'N';
+      end;
+      -- puts a warning div with a link to oracle doc if "table fetch continued row" has value > 0
+      if chained_detected = 'Y' then
+        dbms_output.put_line('<div class="please_note">');
+        dbms_output.put_line('There are no chained rows detected, however the system statistics shows there are sessions accessing such kind of rows.');
+        dbms_output.put_line('Please consider to perform the following ');
+        dbms_output.put_line('<a target="_blank" and rel="noopener noreferrer" href="https://docs.oracle.com/database/121/SQLRF/statements_4005.htm#SQLRF53683">check</a> (opens in another tab)');
+        dbms_output.put_line('</div>');
+      end if;
+    end if;
+  exception
+    when others then
+      dbms_output.put_line('<div class="bad-news">');
+      dbms_output.put_line('There is a following error in the printing chained/migrated rows procedure: ' || sqlerrm);
+      dbms_output.put_line('</div');  
+  end print_chained_rows;
 
 begin
   -- CSS starts
@@ -360,6 +459,15 @@ begin
 
   dbms_output.put_line('<body>');  
     dbms_output.put_line('<div id="popup-background" class="popup-back hidden"></div>'); -- div to be shown as popup's background
+    
+    -- fragmented tables
+    dbms_output.put_line('<h2>Fragmented tables</h2>');
+    print_frag_tables();
+    
+    -- tables having chained/migrated rows
+    dbms_output.put_line('<h2> Tables having chained/migrated rows </h2>');
+    print_chained_rows();
+    
     -- objects having staled statistics
     dbms_output.put_line('<h2> Objects having stale statistics </h2>');
     dbms_output.put_line('<h3> Tables </h3>');
@@ -367,10 +475,6 @@ begin
 
     dbms_output.put_line('<h3> Indexes </h3>');
     print_stale_indexes();
-
-    -- show invalid objects
-    dbms_output.put_line('<h3> Invalid objects </h3>');
-    print_invalid_objects();
         
     -- sql performance stats
     dbms_output.put_line('<h2> Queries resource usage statistics </h2>');
