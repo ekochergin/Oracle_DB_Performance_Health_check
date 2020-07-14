@@ -157,9 +157,10 @@ declare
     fs3_blocks  number;  fs3_bytes  number;
     fs4_blocks  number;  fs4_bytes  number;
     full_blocks number;  full_bytes number;
-  begin
-    -- pick 50 most fragmented tables
-    for frag_tab in (select round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) frag_rate_pct, 
+
+    -- 50 most fragmented tables    
+    cursor c_frag_tables is
+      select round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) frag_rate_pct, 
                             dt.table_name,
                             dt.blocks,
                             dt.owner
@@ -178,7 +179,9 @@ declare
                                            and dts.table_name = dt.table_name)
                         and round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) > 20 -- don't let table with small fragm. rate to bother us
                       order by frag_rate_pct desc
-                      fetch first 50 rows with ties) loop
+                      fetch first 50 rows with ties;
+  begin
+    for frag_tab in c_frag_tables loop
       -- get the detailed fragmentation info
       dbms_space.space_usage(frag_tab.owner, frag_tab.table_name, 'TABLE',
                              unf_blocks, unf_bytes,
