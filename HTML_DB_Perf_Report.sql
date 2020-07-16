@@ -5,7 +5,11 @@ declare
 
   l_css varchar2(32767);
   l_js varchar2(32767);
-
+  
+  g_max_frag_idx_cnt constant number := 50; -- max number of fragmented indexes to display
+  g_max_frag_tab_cnt constant number := 50; -- max number of fragmented tables to show
+  g_max_stats_cnt constant number := 20; -- max number of performance stats to display
+  
   /*
   prints head and title tags. all the CSS goes here
   p_title_name is the value that goes into <title> tag
@@ -146,6 +150,81 @@ declare
       end if;
   end simple_html_table;
   
+  /*
+  Prints out fragmentation stats for top 50 indexes descending ordered by idx_size / table_size
+  */
+  
+  procedure print_frag_indexes is
+    l_idx_cnt number := 0;
+    l_dummy number;
+    
+    l_ratio number;
+    l_height index_stats.height%type;
+    l_lf_blks index_stats.lf_blks%type;
+    l_lf_rows index_stats.lf_rows%type;
+    
+    l_indx_stats varchar2_t := varchar2_t();
+  
+    cursor c_frag_idx is 
+      select i.owner, i.index_name, round(idx_seg.blocks / tab_seg.blocks * 100, 2) index_size_pct, idx_seg.bytes / 1024 / 1024 idx_size_mb, tab_seg.bytes / 1024 / 1024 tab_size_mb
+        from dba_users u,
+             dba_indexes i,
+             dba_tables t,
+             dba_segments idx_seg,
+             dba_segments tab_seg
+       where i.owner = u.username
+         and t.owner = i.owner and t.table_name = i.table_name
+         and idx_seg.owner = i.owner and idx_seg.segment_name = i.index_name
+         and tab_seg.owner = t.owner and tab_seg.segment_name = t.table_name
+         and u.oracle_maintained = 'N'
+         and t.blocks > 10000
+       order by idx_seg.blocks / tab_seg.blocks desc;
+  
+  begin
+    for f_idx in c_frag_idx loop
+      exit when l_idx_cnt = g_max_frag_idx_cnt;
+      /*
+      Chekc only the indexes that weight 20% of table or more
+      (this check is somehow quicker here than in the query)
+      */
+      if f_idx.index_size_pct > 20 then
+        execute immediate 'analyze index ' || f_idx.owner || '.' || f_idx.index_name || ' validate structure';
+        begin
+          select round((del_lf_rows/lf_rows) * 100, 2), height, lf_blks, lf_rows
+            into l_ratio, l_height, l_lf_blks, l_lf_rows
+            from index_stats
+           where lf_rows > 0;
+        exception
+          when no_data_found then
+            l_ratio := null;   
+            l_height := null;
+            l_lf_rows := null; 
+            l_lf_blks := null;
+        end;
+      end if;
+      
+      if l_ratio > 20 or l_height >= 4 or l_lf_rows < l_lf_blks then
+        l_idx_cnt := l_idx_cnt + 1;
+        l_indx_stats.extend;
+        l_indx_stats(l_indx_stats.count) := '<tr>' ||
+                                              '<td class="left-align">' || f_idx.owner || '</td><td class="left-align">' || f_idx.index_name || 
+                                              '</td><td class="right-align">' || f_idx.idx_size_mb || '</td><td class="right-align">' || f_idx.tab_size_mb ||
+                                              '</td><td class="right-align">' || l_ratio || '</td><td class="right-align">' || l_height || 
+                                              '</td><td class="right-align">' || l_lf_blks || '</td><td class="right-align">' || l_lf_rows || '</td>' ||
+                                              '</td><td class="center-aligh"><a href="#" onclick="showCommand(''alter index ' || f_idx.owner || '.' || f_idx.index_name || ' rebuild;'')">Show command</a>' || '</td>' ||
+                                            '</tr>';
+      end if;
+    end loop;
+    
+    l_dummy := print_plsql_table('frag-indexes-stats',
+                               '<th>Owner</th><th>Index name</th><th>Index size</th><th>Tab size</th><th>ratio</th><th>Tree''s height</th><th>Data blocks</th><th>Values</th><th>How to fix</th',
+                               l_indx_stats);
+  end print_frag_indexes;
+  
+  /*
+  Prints table fragmentation statistics for 50 most fragmented tables
+  */
+
   procedure print_frag_tables
   is
     frag_stats varchar2_t := varchar2_t();
@@ -179,7 +258,7 @@ declare
                                            and dts.table_name = dt.table_name)
                         and round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) > 20 -- don't let table with small fragm. rate to bother us
                       order by frag_rate_pct desc
-                      fetch first 50 rows with ties;
+                      fetch first g_max_frag_tab_cnt rows with ties;
   begin
     for frag_tab in c_frag_tables loop
       -- get the detailed fragmentation info
@@ -193,9 +272,11 @@ declare
       -- append that data into a plsql table                     
       frag_stats.extend;
       frag_stats(frag_stats.count) := '<tr>' ||
-                                        '<td>' || frag_tab.owner || '</td><td>' || frag_tab.table_name || '</td><td>' || frag_tab.frag_rate_pct || '%' ||
-                                        '</td><td>' || frag_tab.blocks || '</td><td>' || unf_blocks || '</td><td>' || fs1_blocks || '</td><td>' || fs2_blocks || 
-                                        '</td><td>'  || fs3_blocks || '</td><td>' || fs4_blocks || '</td><td>' || full_blocks || '</td>' ||
+                                        '<td class="left-align">' || frag_tab.owner || '</td><td class="left-align">' || frag_tab.table_name || '</td><td class="right-align">' || frag_tab.frag_rate_pct || '%' ||
+                                        '</td><td class="right-align">' || frag_tab.blocks || '</td><td class="right-align">' || unf_blocks || 
+                                        '</td><td class="right-align">' || fs1_blocks || '</td><td class="right-align">' || fs2_blocks || 
+                                        '</td><td class="right-align">'  || fs3_blocks || '</td><td class="right-align">' || fs4_blocks || 
+                                        '</td><td class="right-align">' || full_blocks || '</td>' ||
                                       '</tr>';
     end loop;
     
@@ -225,7 +306,7 @@ declare
              '</td><td>' || round(s.buffer_gets / s.END_OF_FETCH_COUNT) ||
              '</td><td>' || round(s.cpu_time / s.END_OF_FETCH_COUNT) ||
              '</td><td class="left-align">' || s.module ||
-             '</td><td class="center-align"><a href="#" onclick="gather_info(''' || s.sql_id || ''', ''' || s.child_address || ''')">Show query info</a>' ||
+             '</td><td class="center-align"><a href="#" onclick="gatherInfo(''' || s.sql_id || ''', ''' || s.child_address || ''')">Show query info</a>' ||
              '</td></tr>' as val,
              s.sql_fulltext,
              s.sql_id,
@@ -238,7 +319,7 @@ declare
                   when 'logical_reads' then round(s.buffer_gets / s.END_OF_FETCH_COUNT)
                   when 'cpu' then round(s.cpu_time / s.END_OF_FETCH_COUNT)
                 end desc 
-       fetch first 20 rows only;
+       fetch first g_max_stats_cnt rows only;
     
     queries       clob;  -- stores all the sqls
     l_query_binds varchar2(32767) := ''; -- bind variables' values for a query
@@ -314,7 +395,7 @@ declare
                                   '</td><td class="left-align">' || object_type ||
                                   '</td><td class="right-align">' || to_char(last_analyzed, 'dd.mm.yyyy hh24:mi:ss') ||
                                   '</td><td class="center-align">' || 
-                                    '<a href=# onclick="show_command(''begin dbms_stats.gather_index_stats(\''' || owner || '\'', \''' || index_name || '\''' || 
+                                    '<a href=# onclick="showCommand(''begin dbms_stats.gather_index_stats(\''' || owner || '\'', \''' || index_name || '\''' || 
                                     case when partition_name is not null then ', \''' || partition_name || '\''' end || '); end;'')"' || '>Show command</a>' ||
                                   '</td></tr>'     
                              from dba_ind_statistics 
@@ -404,11 +485,11 @@ begin
   window.onclick = function(event){
     if (activePopup.innerHTML) { //if activePopup is not empty
       if (event.target != activePopup){
-        popup_hide();
+        popupHide();
       }
     }
   }
-  function gather_info(sqlId, childAddress){
+  function gatherInfo(sqlId, childAddress){
     window.event.cancelBubble = true; // prevents event from bubbling up, the window.onclick will not fire
 
     // gather active popup content
@@ -420,14 +501,14 @@ begin
       activePopup.innerHTML += "<p> No binds captured";
     };
 
-    popup_show();
+    popupShow();
   }
-  function show_command(pText){
+  function showCommand(pText){
     window.event.cancelBubble = true;
     activePopup.innerHTML = "<p>" + pText;
-    popup_show();
+    popupShow();
   }
-  function popup_show(){
+  function popupShow(){
     activePopup.classList.add("popup");
     activePopup.classList.add("visible");
     
@@ -445,7 +526,7 @@ begin
     
     document.body.style.overflowY = "hidden"; // prevents body from scrolling when popup is active
   }
-  function popup_hide(){
+  function popupHide(){
     activePopup.innerHTML = ""; //empty popup
 
     backDiv.removeChild(backDiv.childNodes[0]); // empty backDiv
@@ -463,8 +544,12 @@ begin
   dbms_output.put_line('<body>');  
     dbms_output.put_line('<div id="popup-background" class="popup-back hidden"></div>'); -- div to be shown as popup's background
     
+    -- fragmented indexes
+    dbms_output.put_line('<h2>Top ' || g_max_frag_idx_cnt || ' fragmented indexes</h2>');
+    print_frag_indexes();
+    
     -- fragmented tables
-    dbms_output.put_line('<h2>Fragmented tables</h2>');
+    dbms_output.put_line('<h2>Top ' || g_max_frag_tab_cnt || ' fragmented tables</h2>');
     print_frag_tables();
     
     -- tables having chained/migrated rows
