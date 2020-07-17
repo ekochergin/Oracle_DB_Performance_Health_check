@@ -157,6 +157,7 @@ declare
   procedure print_frag_indexes is
     l_idx_cnt number := 0;
     l_dummy number;
+    l_fix_command varchar2(32000);
     
     l_ratio number;
     l_height index_stats.height%type;
@@ -205,13 +206,14 @@ declare
       
       if l_ratio > 20 or l_height >= 4 or l_lf_rows < l_lf_blks then
         l_idx_cnt := l_idx_cnt + 1;
+        l_fix_command := 'alter index ' || f_idx.owner || '.' || f_idx.index_name || ' rebuild;';
         l_indx_stats.extend;
         l_indx_stats(l_indx_stats.count) := '<tr>' ||
                                               '<td class="left-align">' || f_idx.owner || '</td><td class="left-align">' || f_idx.index_name || 
                                               '</td><td class="right-align">' || f_idx.idx_size_mb || '</td><td class="right-align">' || f_idx.tab_size_mb ||
                                               '</td><td class="right-align">' || l_ratio || '</td><td class="right-align">' || l_height || 
                                               '</td><td class="right-align">' || l_lf_blks || '</td><td class="right-align">' || l_lf_rows || '</td>' ||
-                                              '</td><td class="center-aligh"><a href="#" onclick="showCommand(''alter index ' || f_idx.owner || '.' || f_idx.index_name || ' rebuild;'')">Show command</a>' || '</td>' ||
+                                              '</td><td class="center-align"><a href="#" onclick="showCommand(''' || l_fix_command || ''')">Show command</a>' || '</td>' ||
                                             '</tr>';
       end if;
     end loop;
@@ -227,6 +229,7 @@ declare
 
   procedure print_frag_tables
   is
+    l_fix_command varchar2(32000);
     frag_stats varchar2_t := varchar2_t();
     dummy number;
   
@@ -269,6 +272,15 @@ declare
                              fs3_blocks, fs3_bytes, 
                              fs4_blocks, fs4_bytes,
                              full_blocks, full_bytes);     
+      
+      -- assemble fix command (table move + rebuild for all indexes)
+      select listagg('alter index ' || i.owner || '.' || i.index_name || ' rebuild;', '<br>') within group(order by owner) as rebuild_command
+        into l_fix_command
+        from dba_indexes i 
+       where i.table_owner = 'NRGMOERS'
+         and i.table_name = 'STOCK_ITEM';
+      l_fix_command := 'alter table ' || frag_tab.owner || '.' || frag_tab.table_name || ' move;<br>' || l_fix_command;
+                                   
       -- append that data into a plsql table                     
       frag_stats.extend;
       frag_stats(frag_stats.count) := '<tr>' ||
@@ -277,11 +289,14 @@ declare
                                         '</td><td class="right-align">' || fs1_blocks || '</td><td class="right-align">' || fs2_blocks || 
                                         '</td><td class="right-align">'  || fs3_blocks || '</td><td class="right-align">' || fs4_blocks || 
                                         '</td><td class="right-align">' || full_blocks || '</td>' ||
+                                        '</td><td class="center-align"><a href="#" onclick="showCommand(''' || l_fix_command || ''')">Show command</a></td>' ||
                                       '</tr>';
     end loop;
     
     dummy := print_plsql_table('frag-table-stats', 
-                               '<th>owner</th><th>table name</th><th>fragmentation rate</th><th>blocks total</th><th>unformatted blocks</th><th>0-25% free blocks</th><th>25-50% free blocks</th><th>50-75% free blocks</th><th>75-100% free blocks</th><th>full blocks</th>',
+                               '<th>owner</th><th>table name</th><th>fragmentation rate</th>' ||
+                               '<th>blocks total</th><th>unformatted blocks</th><th>0-25% free blocks</th><th>25-50% free blocks</th>' ||
+                               '<th>50-75% free blocks</th><th>75-100% free blocks</th><th>full blocks</th><th>How to fix</th>',
                                frag_stats);
   end print_frag_tables;
   
@@ -476,6 +491,10 @@ begin
   l_css := l_css || '.left-align{ text-align: left;}';
   l_css := l_css || '.right-align{ text-align: right;}';
   l_css := l_css || '.center-align{ text-align: center;}';
+  l_css := l_css || 'div#header-div{ text-align: center; background: #055190; width: 80%; margin: auto; }';
+  l_css := l_css || 'h1{ display: inline-block; color: white; }';
+  l_css := l_css || 'h2, h3{ padding-left: 10%; color: #023057; margin-top: 1.5em;}';
+      
   -- CSS ends
   
   -- JS starts
@@ -544,35 +563,38 @@ begin
   dbms_output.put_line('<body>');  
     dbms_output.put_line('<div id="popup-background" class="popup-back hidden"></div>'); -- div to be shown as popup's background
     
+    dbms_output.put_line('<div id="header-div"><h1>Oracle SE performance analysis report</h1></div>');
+    
+    dbms_output.put_line('<h2>1. Objects having stale statistics</h2>');
+    -- tables having staled statistics
+    dbms_output.put_line('<h3>Tables</h3>');
+    print_stale_tables();
+
+    -- indexes having stale statistics
+    dbms_output.put_line('<h3>Indexes</h3>');
+    print_stale_indexes();
+    
     -- fragmented indexes
-    dbms_output.put_line('<h2>Top ' || g_max_frag_idx_cnt || ' fragmented indexes</h2>');
+    dbms_output.put_line('<h2>2. Top ' || g_max_frag_idx_cnt || ' fragmented indexes</h2>');
     print_frag_indexes();
     
     -- fragmented tables
-    dbms_output.put_line('<h2>Top ' || g_max_frag_tab_cnt || ' fragmented tables</h2>');
+    dbms_output.put_line('<h2>3. Top ' || g_max_frag_tab_cnt || ' fragmented tables</h2>');
     print_frag_tables();
     
     -- tables having chained/migrated rows
-    dbms_output.put_line('<h2> Tables having chained/migrated rows </h2>');
+    dbms_output.put_line('<h2>4. Tables having chained/migrated rows</h2>');
     print_chained_rows();
-    
-    -- objects having staled statistics
-    dbms_output.put_line('<h2> Objects having stale statistics </h2>');
-    dbms_output.put_line('<h3> Tables </h3>');
-    print_stale_tables();
-
-    dbms_output.put_line('<h3> Indexes </h3>');
-    print_stale_indexes();
         
     -- sql performance stats
-    dbms_output.put_line('<h2> Queries resource usage statistics </h2>');
-    dbms_output.put_line('<h3> ordered by time consumed </h3>');
+    dbms_output.put_line('<h2>5. Resource-intensive queries</h2>');
+    dbms_output.put_line('<h3>Top ' || g_max_stats_cnt || ' time consuming queries</h3>');
     print_perf_stats_data('time');
-    dbms_output.put_line('<h3> ordered by disk reads </h3>');
+    dbms_output.put_line('<h3>Top ' || g_max_stats_cnt || ' disk reads intensive queries</h3>');
     print_perf_stats_data('disk');
-    dbms_output.put_line('<h3> ordered by logical reads </h3>');
+    dbms_output.put_line('<h3>Top ' || g_max_stats_cnt || ' logical reads intensive queries</h3>');
     print_perf_stats_data('logical_reads');
-    dbms_output.put_line('<h3> ordered by cpu consumed </h3>');    
+    dbms_output.put_line('<h3>Top ' || g_max_stats_cnt || ' cpu consuming queries </h3>');    
     print_perf_stats_data('cpu');
     
   dbms_output.put_line(htf.script(l_js)); -- appends JS code
