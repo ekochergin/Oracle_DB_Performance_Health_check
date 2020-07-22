@@ -385,12 +385,13 @@ declare
     c_stale_tabs sys_refcursor;
     dummy number; 
   begin
-    open c_stale_tabs for select '<tr><td class="left-align">'  || owner ||
-                                 '</td><td class="left-align">' || table_name ||
-                                 '</td><td class="left-align">' || object_type ||
+    open c_stale_tabs for select '<tr><td class="left-align">'   || owner ||
+                                 '</td><td class="left-align">'  || table_name ||
+                                 '</td><td class="left-align">'  || object_type ||
                                  '</td><td class="right-align">' || to_char(last_analyzed, 'dd.mm.yyyy hh24:mi:ss') ||
-                                 '</td><td class="left-align">' || 'begin dbms_stats.gather_table_stats(''' || owner || ''', ''' || table_name || '''' || 
-                                 case when partition_name is not null then ', ''' || partition_name || '''' end || '); end;' ||
+                                 '</td><td><a href=#>Show command</a>' ||
+                                 /*'</td><td class="left-align">'  || 'begin dbms_stats.gather_table_stats(''' || owner || ''', ''' || table_name || '''' || 
+                                 case when partition_name is not null then ', ''' || partition_name || '''' end || '); end;' || */
                                  '</td></tr>'
                             from dba_tab_statistics 
                            where stale_stats = 'YES';
@@ -469,7 +470,7 @@ declare
       -- puts a warning div with a link to oracle doc if "table fetch continued row" has value > 0
       if chained_detected = 'Y' then
         dbms_output.put_line('<div class="news please-note"><span class="icon-span">i</span>');
-        dbms_output.put_line('There are no chained rows detected, however the system statistics shows there are sessions accessing such kind of rows.');
+        dbms_output.put_line('There are no chained rows detected, however the system statistics shows there are sessions events "table fetch continued row" that means accessing such kind of rows.');
         dbms_output.put_line('Please consider to perform the following ');
         dbms_output.put_line('<a target="_blank" and rel="noopener noreferrer" href="https://docs.oracle.com/database/121/SQLRF/statements_4005.htm#SQLRF53683">check</a> (opens in another tab)');
         dbms_output.put_line('</div>');
@@ -577,7 +578,8 @@ begin
     
     dbms_output.put_line('<div id="header-div"><h1>Oracle SE performance analysis report</h1></div>');
     
-    dbms_output.put_line('<h2>1. Objects having stale statistics</h2>');
+    dbms_output.put_line('<ol>');
+    dbms_output.put_line('<h2><li>Objects having stale statistics</li></h2>');
     -- tables having staled statistics
     dbms_output.put_line('<h3>Tables</h3>');
     print_stale_tables();
@@ -587,19 +589,19 @@ begin
     print_stale_indexes();
     
     -- fragmented indexes
-    dbms_output.put_line('<h2>2. Top ' || g_max_frag_idx_cnt || ' fragmented indexes</h2>');
+    dbms_output.put_line('<h2><li>Top ' || g_max_frag_idx_cnt || ' fragmented indexes</li></h2>');
     print_frag_indexes();
     
     -- fragmented tables
-    dbms_output.put_line('<h2>3. Top ' || g_max_frag_tab_cnt || ' fragmented tables</h2>');
+    dbms_output.put_line('<h2><li>Top ' || g_max_frag_tab_cnt || ' fragmented tables</li></h2>');
     print_frag_tables();
     
     -- tables having chained/migrated rows
-    dbms_output.put_line('<h2>4. Tables having chained/migrated rows</h2>');
+    dbms_output.put_line('<h2><li>Tables having chained/migrated rows</li></h2>');
     print_chained_rows();
         
     -- sql performance stats
-    dbms_output.put_line('<h2>5. Resource-intensive queries</h2>');
+    dbms_output.put_line('<h2><li>Resource-intensive queries</li></h2>');
     dbms_output.put_line('<h3>Top ' || g_max_stats_cnt || ' time consuming queries</h3>');
     print_perf_stats_data('time');
     dbms_output.put_line('<h3>Top ' || g_max_stats_cnt || ' disk reads intensive queries</h3>');
@@ -608,6 +610,7 @@ begin
     print_perf_stats_data('logical_reads');
     dbms_output.put_line('<h3>Top ' || g_max_stats_cnt || ' cpu consuming queries </h3>');    
     print_perf_stats_data('cpu');
+    dbms_output.put_line('</ol>');
     
   dbms_output.put_line(htf.script(l_js)); -- appends JS code
   dbms_output.put_line('</body></html>');
