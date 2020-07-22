@@ -389,9 +389,8 @@ declare
                                  '</td><td class="left-align">'  || table_name ||
                                  '</td><td class="left-align">'  || object_type ||
                                  '</td><td class="right-align">' || to_char(last_analyzed, 'dd.mm.yyyy hh24:mi:ss') ||
-                                 '</td><td><a href=#>Show command</a>' ||
-                                 /*'</td><td class="left-align">'  || 'begin dbms_stats.gather_table_stats(''' || owner || ''', ''' || table_name || '''' || 
-                                 case when partition_name is not null then ', ''' || partition_name || '''' end || '); end;' || */
+                                 '</td><td class="center-align"><a href=# onclick="showCommand(''begin dbms_stats.gather_table_stats(\''' || owner || '\'', \''' || table_name || '\''' ||
+                                   case when partition_name is not null then ', \''' || partition_name || '\''' end || '); end;'')">Show command</a>' ||
                                  '</td></tr>'
                             from dba_tab_statistics 
                            where stale_stats = 'YES';
