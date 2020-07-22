@@ -23,7 +23,7 @@ declare
     dbms_output.put_line(htf.headClose);
   exception
     when others then
-      dbms_output.put_line('<div class="bad-news">An error occured while printing head of the document: ' || sqlerrm || '</div>');
+      dbms_output.put_line('<div class="news bad-news"><span class="icon-span">r</span>An error occured while printing head of the document: ' || sqlerrm || '</div>');
   end print_header;
   
   /*
@@ -121,7 +121,8 @@ declare
       end loop;
       dbms_output.put_line('</tbody></table>');
     else
-      dbms_output.put_line('<div id="good-news">Nothing found!</div>');
+      -- the "a" within span is to show a check mark using "webdings" font (see CSS for details)
+      dbms_output.put_line('<div class="news good-news"><span class="icon-span">a</span>Nothing found!</div>');
     end if;
     
     return p_table.count;
@@ -274,11 +275,16 @@ declare
                              full_blocks, full_bytes);     
       
       -- assemble fix command (table move + rebuild for all indexes)
-      select listagg('alter index ' || i.owner || '.' || i.index_name || ' rebuild;', '<br>') within group(order by owner) as rebuild_command
-        into l_fix_command
-        from dba_indexes i 
-       where i.table_owner = 'NRGMOERS'
-         and i.table_name = 'STOCK_ITEM';
+      begin
+        select listagg('alter index ' || i.owner || '.' || i.index_name || ' rebuild;', '<br>') within group(order by owner) as rebuild_command
+          into l_fix_command
+          from dba_indexes i 
+         where i.table_owner = 'NRGMOERS'
+           and i.table_name = 'STOCK_ITEM';
+      exception
+        when no_data_found then 
+          l_fix_command := '';
+      end;
       l_fix_command := 'alter table ' || frag_tab.owner || '.' || frag_tab.table_name || ' move;<br>' || l_fix_command;
                                    
       -- append that data into a plsql table                     
@@ -365,7 +371,7 @@ declare
     print_clob(queries);
   exception
     when others then
-      dbms_output.put_line('<div class="bad-news">');
+      dbms_output.put_line('<div class="news bad-news"><span class="icon-span">r</span>');
       dbms_output.put_line('Error in print_perf_stats_data: ' || sqlerrm);
       dbms_output.put_line('<p>Parameters:</p>');
       dbms_output.put_line('<p>  p_stat_name: ' || p_stat_name || ';</p>' || chr(10) ||
@@ -393,7 +399,7 @@ declare
                                c_stale_tabs);
   exception
     when others then 
-      dbms_output.put_line('<div class="bad-news">');
+      dbms_output.put_line('<div class="news bad-news"><span class="icon-span">r</span>');
       dbms_output.put_line('There is a following error in printing stale tables procedure: ' || sqlerrm);
       dbms_output.put_line('</div');
   end print_stale_tables;
@@ -420,7 +426,7 @@ declare
                                c_stale_indxs);
   exception
     when others then
-      dbms_output.put_line('<div class="bad-news">');
+      dbms_output.put_line('<div class="news bad-news"><span class="icon-span">r</span>');
       dbms_output.put_line('There is a following error in the printing stale indexes procedure: ' || sqlerrm);
       dbms_output.put_line('</div');        
   end print_stale_indexes;
@@ -446,7 +452,8 @@ declare
                              order by chain_cnt desc;
     row_count := simple_html_table('chainedRows',
                                    '<th>owner</th><th>table name</th><th>rows count (statistics)</th><th>chained rows count (statistics)</th><th>chained rows ratio</th>',
-                                   c_chained_rows);
+                                   c_chained_rows);                             
+                                      
     -- there is another thing to check if there were no chained/migrated rows detected
     if row_count = 0 then
       begin
@@ -461,7 +468,7 @@ declare
       end;
       -- puts a warning div with a link to oracle doc if "table fetch continued row" has value > 0
       if chained_detected = 'Y' then
-        dbms_output.put_line('<div class="please_note">');
+        dbms_output.put_line('<div class="news please-note"><span class="icon-span">i</span>');
         dbms_output.put_line('There are no chained rows detected, however the system statistics shows there are sessions accessing such kind of rows.');
         dbms_output.put_line('Please consider to perform the following ');
         dbms_output.put_line('<a target="_blank" and rel="noopener noreferrer" href="https://docs.oracle.com/database/121/SQLRF/statements_4005.htm#SQLRF53683">check</a> (opens in another tab)');
@@ -470,9 +477,9 @@ declare
     end if;
   exception
     when others then
-      dbms_output.put_line('<div class="bad-news">');
+      dbms_output.put_line('<div class="news bad-news"><span class="icon-span">r</span>');
       dbms_output.put_line('There is a following error in the printing chained/migrated rows procedure: ' || sqlerrm);
-      dbms_output.put_line('</div');  
+      dbms_output.put_line('</div>');  
   end print_chained_rows;
 
 begin
@@ -494,6 +501,11 @@ begin
   l_css := l_css || 'div#header-div{ text-align: center; background: #055190; width: 80%; margin: auto; }';
   l_css := l_css || 'h1{ display: inline-block; color: white; }';
   l_css := l_css || 'h2, h3{ padding-left: 10%; color: #023057; margin-top: 1.5em;}';
+  l_css := l_css || 'div.news{ padding: 1em; margin: auto; margin-bottom: 1em; width: 80%; border-radius: 0.5em; }';
+  l_css := l_css || 'div.good-news{ background-color: #d4edda; }';
+  l_css := l_css || 'div.please-note{ background-color: #fff3cd; }';
+  l_css := l_css || 'div.bad-news{ background-color: #f8d7da; }';
+  l_css := l_css || 'span.icon-span{ font-family: webdings; font-size: 2em; }';
       
   -- CSS ends
   
