@@ -111,6 +111,7 @@ declare
   */
   function print_plsql_table(p_id in varchar2, p_headers in varchar2, p_table in varchar2_t, p_classes in varchar2 default null) return number
   is
+    l_cmd varchar2(32000);
   begin
     if p_table.count > 0 then
       dbms_output.put_line('<table id="' || p_id || '" class="' || p_classes || '">');
@@ -150,6 +151,17 @@ declare
         close p_cursor;
       end if;
   end simple_html_table;
+  
+  /*
+  
+  */
+  procedure print_collect_commands_button(p_id varchar2)
+  is
+  begin
+    dbms_output.put_line('<div class="collect-cmd-btn">');
+    dbms_output.put_line('<button class="collect-cmd" onclick="collectCommands(''' || p_id || ''')">Show all commands in a popup</button>');
+    dbms_output.put_line('</div>');
+  end;
   
   /*
   Prints out fragmentation stats for top 50 indexes descending ordered by idx_size / table_size
@@ -349,7 +361,7 @@ declare
     l_current_sql_id v$sql.sql_id%type;
     l_child_address v$sql.child_address%type;
   begin
-    dbms_output.put_line('<table id="sql_perf_' || p_stat_name || '">');
+    dbms_output.put_line('<table id="sql-perf-' || p_stat_name || '">');
     dbms_output.put_line('<thead><tr><th>sql_id</th><th>child_address</th><th>exec. count</th><th>avg elapsed time, sec</th><th>avg disk reads</th><th>avg logical reads</th><th>avg cpu usage</th><th>module name</th><th>Info</th</tr></thead>');
     for line in stats_data(p_stat_name) loop
       l_current_sql_id := line.sql_id;
@@ -394,7 +406,7 @@ declare
                                  '</td></tr>'
                             from dba_tab_statistics 
                            where stale_stats = 'YES';
-    dummy := simple_html_table('staleTables', 
+    dummy := simple_html_table('stale-tables', 
                                '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
                                c_stale_tabs);
   exception
@@ -421,7 +433,7 @@ declare
                                   '</td></tr>'     
                              from dba_ind_statistics 
                             where stale_stats = 'YES';
-    dummy := simple_html_table('staleIndexes',
+    dummy := simple_html_table('stale-indexes',
                                '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
                                c_stale_indxs);
   exception
@@ -450,7 +462,7 @@ declare
                                and t.num_rows > 0
                                and t.chain_cnt/t.num_rows > 0.05 -- chained ratio greater than 5%
                              order by chain_cnt desc;
-    row_count := simple_html_table('chainedRows',
+    row_count := simple_html_table('chained-rows',
                                    '<th>owner</th><th>table name</th><th>rows count (statistics)</th><th>chained rows count (statistics)</th><th>chained rows ratio</th>',
                                    c_chained_rows);                             
                                       
@@ -489,7 +501,6 @@ begin
   l_css := l_css || 'div.visible{ display: block;}';
   l_css := l_css || 'div.popup{ position: fixed; z-index: 1; overflow: auto; /* this enables scroll */ width: 70%; height: 70%; background-color: #fffcee; top: 15%; left: 15%; border-radius: 0.5em; padding: 1em;}';
   l_css := l_css || 'div.popup-show{ display: block;}';
-  l_css := l_css || 'h3{ margin-bottom: 1em; font-weight: bold; text-align: center;}';
   l_css := l_css || 'table{ margin-left: auto; margin-right: auto; width: 80%; border-collapse: collapse;}';
   l_css := l_css || 'tr{ margin-bottom: 1em;}';
   l_css := l_css || 'tr:nth-of-type(even) { background-color: #DDDDF5;}';  
@@ -501,11 +512,14 @@ begin
   l_css := l_css || 'div#header-div{ text-align: center; background: #055190; width: 80%; margin: auto; }';
   l_css := l_css || 'h1{ display: inline-block; color: white; }';
   l_css := l_css || 'h2, h3{ padding-left: 10%; color: #023057; margin-top: 1.5em;}';
+  l_css := l_css || 'h3{ margin-bottom: 1em; font-weight: bold;}';
   l_css := l_css || 'div.news{ padding: 1em; margin: auto; margin-bottom: 1em; width: 80%; border-radius: 0.5em; }';
   l_css := l_css || 'div.good-news{ background-color: #d4edda; }';
   l_css := l_css || 'div.please-note{ background-color: #fff3cd; }';
   l_css := l_css || 'div.bad-news{ background-color: #f8d7da; }';
   l_css := l_css || 'span.icon-span{ font-family: webdings; font-size: 2em; }';
+  l_css := l_css || 'div.collect-cmd-btn{ text-align: center; height: 2em; margin-top: 1em; }';
+  l_css := l_css || 'button.collect-cmd{ background-color: #DDDDF5; border-radius: 0.5em; height: 100%; font-size: 1em; }';
       
   -- CSS ends
   
@@ -535,7 +549,9 @@ begin
     popupShow();
   }
   function showCommand(pText){
-    window.event.cancelBubble = true;
+    if(window.event){
+      window.event.cancelBubble = true;
+    };
     activePopup.innerHTML = "<p>" + pText;
     popupShow();
   }
@@ -566,6 +582,21 @@ begin
 
     document.body.style.overflowY = ""; // return scrollbar back
     window.scrollTo(0, scrollY); // return scroll to the position user scrolled before open popup
+  }
+  // parses the table, assembles all the attributes for each lines'' showCommands and displays it in a popup
+    function collectCommands(pTabId){
+    const CMD_START = "showCommand(''";
+    const CMD_END = "'')";
+    let cmdCollect = "";
+    let tabRows = document.getElementById(pTabId).rows;
+    // the 0th row is the heading, skip it and start from 1st line
+    for(let rowCnt = 1, maxCnt = tabRows.length; rowCnt < maxCnt; rowCnt++){
+      let rowCells = tabRows[rowCnt].cells;
+      let rawCmd = rowCells[rowCells.length - 1].children[0].onclick.toString(); //get onclick event as a string
+      
+      cmdCollect += rawCmd.substring(rawCmd.indexOf(CMD_START) + CMD_START.length, rawCmd.indexOf(CMD_END) + CMD_END.length) + "<br>";
+    }
+    showCommand(cmdCollect.split("\\").join("")); // a quick way to remove all "\"s from string. it is quick for a developer, not for a browser
   }';
   -- JS ends
 
@@ -582,18 +613,22 @@ begin
     -- tables having staled statistics
     dbms_output.put_line('<h3>Tables</h3>');
     print_stale_tables();
+    print_collect_commands_button('stale-tables');
 
     -- indexes having stale statistics
     dbms_output.put_line('<h3>Indexes</h3>');
     print_stale_indexes();
+    print_collect_commands_button('stale-indexes');
     
     -- fragmented indexes
     dbms_output.put_line('<h2><li>Top ' || g_max_frag_idx_cnt || ' fragmented indexes</li></h2>');
     print_frag_indexes();
+    print_collect_commands_button('frag-indexes-stats');
     
     -- fragmented tables
     dbms_output.put_line('<h2><li>Top ' || g_max_frag_tab_cnt || ' fragmented tables</li></h2>');
     print_frag_tables();
+    print_collect_commands_button('frag-table-stats');
     
     -- tables having chained/migrated rows
     dbms_output.put_line('<h2><li>Tables having chained/migrated rows</li></h2>');
