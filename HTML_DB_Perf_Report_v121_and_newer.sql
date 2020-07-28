@@ -526,10 +526,11 @@ begin
   -- JS starts
   l_js := 
   'let activePopup = document.createElement("div"); let scrollY; let backDiv = document.getElementById("popup-background");
-
+  activePopup.id = "popup";
+  
   window.onclick = function(event){
     if (activePopup.innerHTML) { //if activePopup is not empty
-      if (event.target != activePopup){
+      if (event.target.closest("div#popup") != activePopup){
         popupHide();
       }
     }
