@@ -528,6 +528,17 @@ begin
   'let activePopup = document.createElement("div"); let scrollY; let backDiv = document.getElementById("popup-background");
   activePopup.id = "popup";
   
+  //implementation of "closest" for IE
+  (function(ELEMENT) {
+  ELEMENT.matches = ELEMENT.matches || ELEMENT.mozMatchesSelector || ELEMENT.msMatchesSelector || ELEMENT.oMatchesSelector || ELEMENT.webkitMatchesSelector;
+  ELEMENT.closest = ELEMENT.closest || function closest(selector) {
+  if (!this) return null;
+    if (this.matches(selector)) return this;
+    if (!this.parentElement) {return null}
+    else return this.parentElement.closest(selector)
+    };
+  }(Element.prototype));
+  
   window.onclick = function(event){
     if (activePopup.innerHTML) { //if activePopup is not empty
       if (event.target.closest("div#popup") != activePopup){
@@ -587,7 +598,7 @@ begin
   // parses the table, assembles all the attributes for each lines'' showCommands and displays it in a popup
     function collectCommands(pTabId){
     const CMD_START = "showCommand(''";
-    const CMD_END = "'')";
+    const CMD_END = ";";
     let cmdCollect = "";
     let tabRows = document.getElementById(pTabId).rows;
     // the 0th row is the heading, skip it and start from 1st line
@@ -595,7 +606,7 @@ begin
       let rowCells = tabRows[rowCnt].cells;
       let rawCmd = rowCells[rowCells.length - 1].children[0].onclick.toString(); //get onclick event as a string
       
-      cmdCollect += rawCmd.substring(rawCmd.indexOf(CMD_START) + CMD_START.length, rawCmd.indexOf(CMD_END) + CMD_END.length) + "<br>";
+      cmdCollect += rawCmd.substring(rawCmd.indexOf(CMD_START) + CMD_START.length, rawCmd.lastIndexOf(CMD_END) + CMD_END.length) + "<br>";
     }
     showCommand(cmdCollect.split("\\").join("")); // a quick way to remove all "\"s from string. it is quick for a developer, not for a browser
   }';
