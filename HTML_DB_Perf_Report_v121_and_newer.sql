@@ -1,18 +1,35 @@
--- 12.1
+/*
+  A script to check the database performance health of an instance which is on version 12.1 or newer
+  
+  It is intended to be launched via command line + sqlplus, like "sqlplus -s user/pass@database @this_script.sql > output_file_name.htm", 
+  so the output is to be forwarded to a file. Don't forgeet the "-s" parameter to turn off all the sqlplus pointless notifications
+  
+  It is assumed that user has accces to all necessary dba_% objects
+  
+  Version: 1.0.0
+  Last changed on: 02 August 2020
+  Author:  Evgenii Kochergin
+  Email:   ekochergin85@gmail.com
+*/
+
+set serveroutput on
+set linesize 32767
+
 
 declare 
   type varchar2_t is table of varchar2(32000); -- being used in print_plsql_table function
 
-  l_css varchar2(32767);
-  l_js varchar2(32767);
+  l_css varchar2(32767); -- keeps all te CSS code. It gets populated in main begin-end block
+  l_js varchar2(32767);  -- same thing for Javascript code
   
   g_max_frag_idx_cnt constant number := 50; -- max number of fragmented indexes to display
   g_max_frag_tab_cnt constant number := 50; -- max number of fragmented tables to show
   g_max_stats_cnt constant number := 20; -- max number of performance stats to display
   
   /*
-  prints head and title tags. all the CSS goes here
-  p_title_name is the value that goes into <title> tag
+  prints head and title tags.
+  Parameter:
+      p_title_name is the value that goes into <title> tag
   */
   procedure print_header(p_title_name in varchar2)
   is
@@ -57,7 +74,7 @@ declare
   end get_binds;
   
   /*
-  prints a clob to the output a clob
+  prints a clob to the output
   */
   procedure print_clob(p_clob in clob)
   is
@@ -153,7 +170,10 @@ declare
   end simple_html_table;
   
   /*
-  
+  prints a button that get attached to a table and is to gather all the fix-commands from that table into a popup, 
+  so the user doesn't have to click every table row manually to get all fix commands
+  Parameter:
+      p_id - html-id of the table the button will be attached to
   */
   procedure print_collect_commands_button(p_id varchar2)
   is
@@ -164,7 +184,7 @@ declare
   end;
   
   /*
-  Prints out fragmentation stats for top 50 indexes descending ordered by idx_size / table_size
+  Prints out fragmentation stats for top 50 indexes sorted by teh following relation "idx_size / table_size"
   */
   
   procedure print_frag_indexes is
@@ -392,6 +412,9 @@ declare
       dbms_output.put_line('</div');
   end print_perf_stats_data;
   
+  /*
+  Prints table that have stale statistic
+  */
   procedure print_stale_tables
   is 
     c_stale_tabs sys_refcursor;
@@ -416,6 +439,9 @@ declare
       dbms_output.put_line('</div');
   end print_stale_tables;
 
+  /*
+  Prints indexes that have stale statistic
+  */
   procedure print_stale_indexes
   is
     c_stale_indxs sys_refcursor;
@@ -443,6 +469,10 @@ declare
       dbms_output.put_line('</div');        
   end print_stale_indexes;
   
+  /*
+  procedure to determine and print out tables having chained or migrated rows.
+  when no tables found the sessions stats are to be checked for "table fetch continued row" event which means an access to such kind of rows
+  */
   procedure print_chained_rows
   is
     c_chained_rows sys_refcursor;
@@ -483,7 +513,7 @@ declare
         dbms_output.put_line('<div class="news please-note"><span class="icon-span">i</span>');
         dbms_output.put_line('There are no chained rows detected, however the system statistics shows there are sessions events "table fetch continued row" that means accessing such kind of rows.');
         dbms_output.put_line('Please consider to perform the following ');
-        dbms_output.put_line('<a target="_blank" and rel="noopener noreferrer" href="https://docs.oracle.com/database/121/SQLRF/statements_4005.htm#SQLRF53683">check</a> (opens in another tab)');
+        dbms_output.put_line('<a target="_blank" and rel="noopener noreferrer" href="https://docs.oracle.com/database/121/SQLRF/statements_4005.htm#SQLRF53683">check</a> (will be opened in another tab)');
         dbms_output.put_line('</div>');
       end if;
     end if;
@@ -661,3 +691,6 @@ begin
   dbms_output.put_line(htf.script(l_js)); -- appends JS code
   dbms_output.put_line('</body></html>');
 end;
+/
+
+quit
