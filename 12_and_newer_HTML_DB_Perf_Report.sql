@@ -275,16 +275,17 @@ declare
 
     -- 50 most fragmented tables    
     cursor c_frag_tables is
-      select round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) frag_rate_pct, 
+    
+    -- the hint is here to avoid last condition to get validated before "blocks > 10000". That may lead to "divisor is equal to zero" error.    
+      select /*+ no_merge(dt) */ round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) frag_rate_pct, 
                             dt.table_name,
                             dt.blocks,
                             dt.owner
                        from dba_users u,
-                            dba_tables dt,
+                            (select * from dba_tables where blocks > 10000) dt,
                             v$parameter p
                       where dt.owner = u.username
                         and u.ORACLE_MAINTAINED = 'N' -- list all non-oracle users
-                        and dt.blocks > 10000 -- filter tiny tables out
                         and dt.num_rows > 0 
                         and dt.avg_row_len > 0
                         and p.name = 'db_block_size'
