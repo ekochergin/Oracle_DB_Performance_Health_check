@@ -212,7 +212,6 @@ declare
          and tab_seg.owner = t.owner and tab_seg.segment_name = t.table_name
          and u.oracle_maintained = 'N'
          and t.blocks > 10000
-         and tab_seg.blocks > 0 -- to avoid ora-01476 "divisor is equal to zero" error
        order by idx_seg.blocks / tab_seg.blocks desc;
   
   begin
