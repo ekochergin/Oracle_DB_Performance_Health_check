@@ -544,7 +544,7 @@ begin
   l_css := l_css || 'h1{ display: inline-block; color: white; }';
   l_css := l_css || 'h2, h3{ padding-left: 10%; color: #023057; margin-top: 1.5em;}';
   l_css := l_css || 'h3{ margin-bottom: 1em; font-weight: bold;}';
-  l_css := l_css || 'div.news{ padding: 1em; margin: auto; margin-bottom: 1em; width: 80%; border-radius: 0.5em; }';
+  l_css := l_css || 'div.news{ padding: 1em; margin: 1em auto 1em auto; width: 80%; border-radius: 0.5em; }';
   l_css := l_css || 'div.good-news{ background-color: #d4edda; }';
   l_css := l_css || 'div.please-note{ background-color: #fff3cd; }';
   l_css := l_css || 'div.bad-news{ background-color: #f8d7da; }';
