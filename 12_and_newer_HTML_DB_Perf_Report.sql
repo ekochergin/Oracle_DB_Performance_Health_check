@@ -410,7 +410,7 @@ declare
       dbms_output.put_line('<p>  p_stat_name: ' || p_stat_name || ';</p>' || chr(10) ||
                            '<p>  sql_id: '|| l_current_sql_id || ';</p>' || chr(10) ||
                            '<p>  child_address: ' || l_child_address ||';</p>');
-      dbms_output.put_line('</div');
+      dbms_output.put_line('</div>');
   end print_perf_stats_data;
   
   /*
