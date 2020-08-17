@@ -87,7 +87,6 @@ declare
       exit when l_start_pos > dbms_lob.getlength(p_clob);
       if l_symb_in_line >= 30000 then
         l_next_space := dbms_lob.instr(p_clob, ' ', l_start_pos);
-        dbms_output.put_line('>> l_next_space: ' || l_next_space);
         if l_next_space >= l_start_pos and l_next_space <= (l_start_pos + l_step) then
           dbms_output.put_line(dbms_lob.substr(p_clob, l_next_space - l_start_pos, l_start_pos));
           l_start_pos := l_next_space;
@@ -392,7 +391,7 @@ declare
       -- checks whether there are values for bind variables captured. saves them in a separate div if yes.
       l_query_binds := get_binds(line.sql_id, line.child_address);      
       if length(l_query_binds) > 1 then
-        l_all_binds := l_all_binds || '<div id="binds-' || line.sql_id || '-' || line.child_address || '" class="hidden">' /*'" class="bind-values popup">'*/ || l_query_binds || '</div>';
+        l_all_binds := l_all_binds || '<div id="binds-' || line.sql_id || '-' || to_char(line.child_address) || '" class="hidden">' /*'" class="bind-values popup">'*/ || l_query_binds || '</div>';
       end if;
       l_query_binds := '';
       
@@ -437,7 +436,7 @@ declare
     when others then 
       dbms_output.put_line('<div class="news bad-news"><span class="icon-span">r</span>');
       dbms_output.put_line('There is a following error in printing stale tables procedure: ' || sqlerrm);
-      dbms_output.put_line('</div');
+      dbms_output.put_line('</div>');
   end print_stale_tables;
 
   /*
@@ -467,7 +466,7 @@ declare
     when others then
       dbms_output.put_line('<div class="news bad-news"><span class="icon-span">r</span>');
       dbms_output.put_line('There is a following error in the printing stale indexes procedure: ' || sqlerrm);
-      dbms_output.put_line('</div');        
+      dbms_output.put_line('</div>');        
   end print_stale_indexes;
   
   /*
