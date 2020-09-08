@@ -9,7 +9,6 @@
   Version: 1.0.0
   Last changed on: 02 August 2020
   Author:  Evgenii Kochergin
-  Email:   ekochergin85@gmail.com
 */
 
 set serveroutput on
@@ -127,7 +126,6 @@ declare
   */
   function print_plsql_table(p_id in varchar2, p_headers in varchar2, p_table in varchar2_t, p_classes in varchar2 default null) return number
   is
-    l_cmd varchar2(32000);
   begin
     if p_table.count > 0 then
       dbms_output.put_line('<table id="' || p_id || '" class="' || p_classes || '">');
