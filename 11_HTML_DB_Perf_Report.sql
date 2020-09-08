@@ -9,7 +9,14 @@
   Version: 1.0.0
   Last changed on: 05 August 2020
   Author:  Evgenii Kochergin
-  Email:   ekochergin85@gmail
+  
+  NOTE: Some part of the report may crash with "ORA 20001 - 'XXXXXX' Invalid identifies" where 'XXXXXX' some scary identifier which seems to be not humanreadable.
+        This happens when dbms_stats package analyzes dba_recyclebin. Nature of such a problem is not clear to me. Solution would be to purge dba_recyclebin:
+        
+        !! PLEASE EXECUTE THE FOLOWING ONLY IF YOU KNOW WHAT YOU ARE DOING !!
+        1. connect as sys
+        2. purge dba_recyclebin
+        
 */
 
 set serveroutput on
