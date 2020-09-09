@@ -383,7 +383,7 @@ declare
         from (select '<tr><td class="left-align">' || s.sql_id ||
                      '</td><td class="left-align">' || s.child_address ||
                      '</td><td>' || s.END_OF_FETCH_COUNT ||
-                     '</td><td>' || round(s.elapsed_time / s.END_OF_FETCH_COUNT) * 1000000 ||
+                     '</td><td>' || round(s.elapsed_time / s.END_OF_FETCH_COUNT) / 1000000 ||
                      '</td><td>' || round(s.disk_reads / s.END_OF_FETCH_COUNT) ||
                      '</td><td>' || round(s.buffer_gets / s.END_OF_FETCH_COUNT) ||
                      '</td><td>' || round(s.cpu_time / s.END_OF_FETCH_COUNT) ||
@@ -396,7 +396,7 @@ declare
                 from v$sql s
                where END_OF_FETCH_COUNT > 0
                order by case p_order_by 
-                          when 'time' then round(s.elapsed_time / s.END_OF_FETCH_COUNT) * 1000000
+                          when 'time' then round(s.elapsed_time / s.END_OF_FETCH_COUNT) / 1000000
                           when 'disk' then round(s.disk_reads / s.END_OF_FETCH_COUNT)
                           when 'logical_reads' then round(s.buffer_gets / s.END_OF_FETCH_COUNT)
                           when 'cpu' then round(s.cpu_time / s.END_OF_FETCH_COUNT)
