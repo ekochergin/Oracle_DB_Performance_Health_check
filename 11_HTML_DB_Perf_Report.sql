@@ -425,7 +425,7 @@ declare
       l_query_binds := '';
       
       -- saves query text into a standalone div in a clob where other sqls are being stored
-      queries := queries || '<div id="sql-' || line.sql_id || '-' || to_char(line.child_address) || '" class="hidden">' || dbms_lob.substr(escape_html_clob(line.sql_fulltext), dbms_lob.getlength(line.sql_fulltext) + 1) || '</div>' || chr(10);
+      queries := queries || '<div id="sql-' || line.sql_id || '-' || to_char(line.child_address) || '" class="hidden">' || escape_html_clob(line.sql_fulltext) || '</div>' || chr(10);
     end loop;
     dbms_output.put_line('</table>');
     dbms_output.put_line(l_all_binds);
