@@ -6,14 +6,15 @@
   
   It is assumed that user has accces to all necessary dba_% objects
   
-  Version: 1.0.0
-  Last changed on: 05 August 2020
-  Author:  Evgenii Kochergin
+  Version: 1.1.0
+  Last changed on: 14 September 2020
+  Author:          Evgenii Kochergin
+  email:           ekochergin85@gmail.com
   
-  NOTE: Some part of the report may crash with "ORA 20001 - 'XXXXXX' Invalid identifies" where 'XXXXXX' some scary identifier which seems to be not humanreadable.
-        This happens when dbms_stats package analyzes dba_recyclebin. Nature of such a problem is not clear to me. Solution would be to purge dba_recyclebin:
+  NOTE: Some part of the report may crash with "ORA 20001 - 'XXXXXX' Invalid identifier" where 'XXXXXX' some scary identifier which seems to be not humanreadable.
+        This happens when dbms_stats package analyzes dba_recyclebin contents. Nature of such a problem is not clear to me. Solution would be to purge dba_recyclebin:
         
-        !! PLEASE EXECUTE THE FOLOWING ONLY IF YOU KNOW WHAT YOU ARE DOING !!
+        !! PLEASE EXECUTE THE FOLOWING ONLY IF YOU KNOW WHAT YOU ARE DOING !! as I'm not responsible for any damage it might cause to your db
         1. connect as sys
         2. purge dba_recyclebin
         
@@ -457,7 +458,13 @@ declare
                                    case when partition_name is not null then ', \''' || partition_name || '\''' end || '); end;'')">Show command</a>' ||
                                  '</td></tr>'
                             from dba_tab_statistics 
-                           where stale_stats = 'YES';
+                           where stale_stats = 'YES'
+                             and owner not in ('SYS', 'SYSTEM', 'SYSMAN', 'DBSNMP', 'ANONYMOUS', 'APEX_030200', 'APEX_PUBLIC_USER', 
+                                               'APPQOSSYS', 'BI', 'CTXSYS', 'DIP', 'DVSYS', 'EXFSYS', 'FLOWS_FILES',
+                                               'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
+                                               'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
+                                               'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
+                                               'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB');
     dummy := simple_html_table('stale-tables', 
                                '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
                                c_stale_tabs);
@@ -487,7 +494,13 @@ declare
                                     case when partition_name is not null then ', \''' || partition_name || '\''' end || '); end;'')"' || '>Show command</a>' ||
                                   '</td></tr>'     
                              from dba_ind_statistics 
-                            where stale_stats = 'YES';
+                            where stale_stats = 'YES'
+                              and owner not in ('SYS', 'SYSTEM', 'SYSMAN', 'DBSNMP', 'ANONYMOUS', 'APEX_030200', 'APEX_PUBLIC_USER', 
+                                                'APPQOSSYS', 'BI', 'CTXSYS', 'DIP', 'DVSYS', 'EXFSYS', 'FLOWS_FILES',
+                                                'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
+                                                'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
+                                                'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
+                                                'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB');
     dummy := simple_html_table('stale-indexes',
                                '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
                                c_stale_indxs);
@@ -582,6 +595,7 @@ begin
   l_css := l_css || 'span.icon-span{ font-family: webdings; font-size: 2em; }';
   l_css := l_css || 'div.collect-cmd-btn{ text-align: center; height: 2em; margin-top: 1em; }';
   l_css := l_css || 'button.collect-cmd{ background-color: #DDDDF5; border-radius: 0.5em; height: 100%; font-size: 1em; }';
+  l_css := l_css || 'table tbody tr:hover{background-color: #bee5eb;}';
       
   -- CSS ends
   

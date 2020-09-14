@@ -6,14 +6,14 @@
   
   It is assumed that user has accces to all necessary dba_% objects
   
-  Version: 1.0.0
-  Last changed on: 02 August 2020
-  Author:  Evgenii Kochergin
+  Version: 1.1.0
+  Last changed on: 14 September 2020
+  Author:          Evgenii Kochergin
+  email:           ekochergin85@gmail.com
 */
 
 set serveroutput on
 set linesize 32767
-
 
 declare 
   type varchar2_t is table of varchar2(32000); -- being used in print_plsql_table function
@@ -418,15 +418,18 @@ declare
     c_stale_tabs sys_refcursor;
     dummy number; 
   begin
-    open c_stale_tabs for select '<tr><td class="left-align">'   || owner ||
-                                 '</td><td class="left-align">'  || table_name ||
-                                 '</td><td class="left-align">'  || object_type ||
-                                 '</td><td class="right-align">' || to_char(last_analyzed, 'dd.mm.yyyy hh24:mi:ss') ||
-                                 '</td><td class="center-align"><a href=# onclick="showCommand(''begin dbms_stats.gather_table_stats(\''' || owner || '\'', \''' || table_name || '\''' ||
-                                   case when partition_name is not null then ', \''' || partition_name || '\''' end || '); end;'')">Show command</a>' ||
+    open c_stale_tabs for select '<tr><td class="left-align">'   || s.owner ||
+                                 '</td><td class="left-align">'  || s.table_name ||
+                                 '</td><td class="left-align">'  || s.object_type ||
+                                 '</td><td class="right-align">' || to_char(s.last_analyzed, 'dd.mm.yyyy hh24:mi:ss') ||
+                                 '</td><td class="center-align"><a href=# onclick="showCommand(''begin dbms_stats.gather_table_stats(\''' || s.owner || '\'', \''' || s.table_name || '\''' ||
+                                   case when s.partition_name is not null then ', \''' || s.partition_name || '\''' end || '); end;'')">Show command</a>' ||
                                  '</td></tr>'
-                            from dba_tab_statistics 
-                           where stale_stats = 'YES';
+                            from dba_tab_statistics s,
+                                 dba_users u 
+                           where s.owner = u.username
+                             and s.stale_stats = 'YES'
+                             and u.oracle_maintained = 'N';
     dummy := simple_html_table('stale-tables', 
                                '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
                                c_stale_tabs);
@@ -445,18 +448,21 @@ declare
     c_stale_indxs sys_refcursor;
     dummy number;
   begin
-    open c_stale_indxs for select '<tr><td class="left-align">'  || owner ||
-                                  '</td><td class="left-align">' || index_name ||
-                                  '</td><td class="left-align">' || table_owner || 
-                                  '</td><td class="left-align">' || table_name ||
-                                  '</td><td class="left-align">' || object_type ||
-                                  '</td><td class="right-align">' || to_char(last_analyzed, 'dd.mm.yyyy hh24:mi:ss') ||
+    open c_stale_indxs for select '<tr><td class="left-align">'  || s.owner ||
+                                  '</td><td class="left-align">' || s.index_name ||
+                                  '</td><td class="left-align">' || s.table_owner || 
+                                  '</td><td class="left-align">' || s.table_name ||
+                                  '</td><td class="left-align">' || s.object_type ||
+                                  '</td><td class="right-align">' || to_char(s.last_analyzed, 'dd.mm.yyyy hh24:mi:ss') ||
                                   '</td><td class="center-align">' || 
-                                    '<a href=# onclick="showCommand(''begin dbms_stats.gather_index_stats(\''' || owner || '\'', \''' || index_name || '\''' || 
-                                    case when partition_name is not null then ', \''' || partition_name || '\''' end || '); end;'')"' || '>Show command</a>' ||
+                                    '<a href=# onclick="showCommand(''begin dbms_stats.gather_index_stats(\''' || s.owner || '\'', \''' || s.index_name || '\''' || 
+                                    case when s.partition_name is not null then ', \''' || s.partition_name || '\''' end || '); end;'')"' || '>Show command</a>' ||
                                   '</td></tr>'     
-                             from dba_ind_statistics 
-                            where stale_stats = 'YES';
+                             from dba_ind_statistics s,
+                                  dba_users u
+                           where s.owner = u.username
+                             and s.stale_stats = 'YES'
+                             and u.oracle_maintained = 'N';
     dummy := simple_html_table('stale-indexes',
                                '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
                                c_stale_indxs);
@@ -548,6 +554,7 @@ begin
   l_css := l_css || 'span.icon-span{ font-family: webdings; font-size: 2em; }';
   l_css := l_css || 'div.collect-cmd-btn{ text-align: center; height: 2em; margin-top: 1em; }';
   l_css := l_css || 'button.collect-cmd{ background-color: #DDDDF5; border-radius: 0.5em; height: 100%; font-size: 1em; }';
+  l_css := l_css || 'table tbody tr:hover{background-color: #bee5eb;}';
       
   -- CSS ends
   
