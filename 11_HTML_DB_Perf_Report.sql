@@ -6,7 +6,7 @@
   
   It is assumed that user has accces to all necessary dba_% objects
   
-  Version: 1.1.0
+  Version: 1.2.0
   Last changed on: 14 September 2020
   Author:          Evgenii Kochergin
   email:           ekochergin85@gmail.com
@@ -22,22 +22,6 @@
 
 set serveroutput on
 set linesize 32767
-
-
-/*
-  A script to check the database performance health of an instance which is on version 12.1 or newer
-  
-  It is intended to be launched via command line + sqlplus, like "sqlplus -s user/pass@database @this_script.sql > output_file_name.htm", 
-  so the output is to be forwarded to a file. Don't forgeet the "-s" parameter to turn off all the sqlplus pointless notifications
-  
-  It is assumed that user has accces to all necessary dba_% objects
-  
-  Version: 1.0.0
-  Last changed on: 02 August 2020
-  Author:  Evgenii Kochergin
-  Email:   ekochergin85@gmail.com
-*/
-
 
 declare 
   type varchar2_t is table of varchar2(32000); -- being used in print_plsql_table function
@@ -205,7 +189,7 @@ declare
   end;
   
   /*
-  Prints out fragmentation stats for top 50 indexes sorted by teh following relation "idx_size / table_size"
+  Prints out fragmentation stats for top 50 indexes sorted by the following relation "idx_size / table_size"
   */
   
   procedure print_frag_indexes is
@@ -236,34 +220,48 @@ declare
                              'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
                              'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB')
          and t.blocks > 10000
+         and round(idx_seg.blocks / tab_seg.blocks * 100, 2) > 20
        order by idx_seg.blocks / tab_seg.blocks desc;
   
   begin
     for f_idx in c_frag_idx loop
       exit when l_idx_cnt = g_max_frag_idx_cnt;
       /*
-      Chekc only the indexes that weight 20% of table or more
+      Check only indexes which size is 20% of table size or more
       (this check is somehow quicker here than in the query)
       */
-      if f_idx.index_size_pct > 20 then
-        execute immediate 'analyze index ' || f_idx.owner || '.' || f_idx.index_name || ' validate structure';
+      declare
+        ignore_index exception;
+      begin
         begin
-          select round((del_lf_rows/lf_rows) * 100, 2), height, lf_blks, lf_rows
-            into l_ratio, l_height, l_lf_blks, l_lf_rows
-            from index_stats
-           where lf_rows > 0;
+          execute immediate 'analyze index ' || f_idx.owner || '.' || f_idx.index_name || ' validate structure';
         exception
-          when no_data_found then
-            l_ratio := null;   
-            l_height := null;
-            l_lf_rows := null; 
-            l_lf_blks := null;
+          when others then
+            raise ignore_index; -- it fails often because of index appeared to be busy
         end;
-      end if;
+        select round((del_lf_rows/lf_rows) * 100, 2), height, lf_blks, lf_rows
+          into l_ratio, l_height, l_lf_blks, l_lf_rows
+          from index_stats
+         where lf_rows > 0;
+      exception
+        when no_data_found or ignore_index then
+          l_ratio := null;   
+          l_height := null;
+          l_lf_rows := null; 
+          l_lf_blks := null;
+      end;
       
       if l_ratio > 20 or l_height >= 4 or l_lf_rows < l_lf_blks then
         l_idx_cnt := l_idx_cnt + 1;
-        l_fix_command := 'alter index ' || f_idx.owner || '.' || f_idx.index_name || ' rebuild;';
+        
+        /*
+        Q: why the coalesce is here when shrink space is enough for defragmentation?
+        A: shrink space locks the table for the whole it is being executed, whereas coalesce does not. 
+           So the idea is to make as much work as possible without causing any lock in the db
+        */
+        
+        l_fix_command := 'alter index ' || f_idx.owner || '.' || f_idx.index_name || ' coalesce;<br>' || 
+                         'alter index ' || f_idx.owner || '.' || f_idx.index_name || ' shrink space;';
         l_indx_stats.extend;
         l_indx_stats(l_indx_stats.count) := '<tr>' ||
                                               '<td class="left-align">' || f_idx.owner || '</td><td class="left-align">' || f_idx.index_name || 
@@ -299,30 +297,30 @@ declare
 
     -- 50 most fragmented tables    
     cursor c_frag_tables is
-      -- the hint is here to avoid last condition to get validated before "blocks > 10000". That may lead to "divisor is equal to zero" error. 
-      select *
-        from (select /*+ no_merge(dt) */ round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) frag_rate_pct, 
-                     dt.table_name,
-                     dt.blocks,
-                     dt.owner
-                from (select * from dba_tables where blocks > 10000) dt,
-                     v$parameter p
-               where dt.owner not in ('SYS', 'SYSTEM', 'SYSMAN', 'DBSNMP', 'ANONYMOUS', 'APEX_030200', 'APEX_PUBLIC_USER', 
-                             'APPQOSSYS', 'BI', 'CTXSYS', 'DIP', 'DVSYS', 'EXFSYS', 'FLOWS_FILES',
-                             'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
-                             'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
-                             'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                             'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB')
-                 and dt.blocks > 10000 -- filter tiny tables out
-                 and dt.num_rows > 0 
-                 and dt.avg_row_len > 0
-                 and p.name = 'db_block_size'
-                 and not exists (select 1 -- since stats data are being used to find fragmented tables there is a need to exclude tables having stale stats
-                                   from dba_tab_statistics dts
-                                  where dts.stale_stats = 'YES'
-                                    and dts.table_name = dt.table_name)
-                 and round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) > 20 -- don't let table with small fragm. rate to bother us
-               order by frag_rate_pct desc)
+      select * 
+      from (select round((1 - (dt.avg_row_len * dt.num_rows) / (dt.blocks * p.value)) * 100, 2) frag_rate_pct,
+                   dt.table_name,
+                   ds.blocks,
+                   dt.owner
+              from dba_tables dt,
+                   dba_segments ds,
+                   v$parameter p
+             where dt.owner not in ('SYS', 'SYSTEM', 'SYSMAN', 'DBSNMP', 'ANONYMOUS', 'APEX_030200', 'APEX_PUBLIC_USER', 
+                                    'APPQOSSYS', 'BI', 'CTXSYS', 'DIP', 'DVSYS', 'EXFSYS', 'FLOWS_FILES',
+                                    'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
+                                    'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
+                                    'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
+                                    'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB')
+               and dt.blocks > 10000 -- filter tiny tables out
+               and dt.num_rows > 0 
+               and dt.avg_row_len > 0
+               and p.name = 'db_block_size'
+               and not exists (select 1 -- since stats data are being used to find fragmented tables there is a need to exclude tables having stale stats
+                                 from dba_tab_statistics dts
+                                where dts.stale_stats = 'YES'
+                                  and dts.table_name = dt.table_name)
+               and round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) > 20 -- don't let table with small fragm. rate to bother us
+             order by frag_rate_pct desc)
          where rownum <= g_max_frag_tab_cnt;
   begin
     for frag_tab in c_frag_tables loop
@@ -335,18 +333,15 @@ declare
                              fs4_blocks, fs4_bytes,
                              full_blocks, full_bytes);     
       
-      -- assemble fix command (table move + rebuild for all indexes)
-      begin
-        select listagg('alter index ' || i.owner || '.' || i.index_name || ' rebuild;', '<br>') within group(order by owner) as rebuild_command
-          into l_fix_command
-          from dba_indexes i 
-         where i.table_owner = 'NRGMOERS'
-           and i.table_name = 'STOCK_ITEM';
-      exception
-        when no_data_found then 
-          l_fix_command := '';
-      end;
-      l_fix_command := 'alter table ' || frag_tab.owner || '.' || frag_tab.table_name || ' move;<br>' || l_fix_command;
+      /*
+      Q: why the "shrink space compact" is here when "shrink space" is enough for defragmentation?
+      A: shrink space locks the table for the whole time it is being executed on, whereas "shrink space compact" (aka coalesce) does not. 
+         So the idea is to make as much work as possible without causing any lock in the db
+      */
+      l_fix_command := 'alter table ' || frag_tab.owner || '.' || frag_tab.table_name || ' enable row movement;<br>';
+      l_fix_command := l_fix_command || 'alter table ' || frag_tab.owner || '.' || frag_tab.table_name || ' shrink space compact;<br>';
+      l_fix_command := l_fix_command || 'alter table ' || frag_tab.owner || '.' || frag_tab.table_name || ' shrink space;<br>';
+      l_fix_command := l_fix_command || 'alter table ' || frag_tab.owner || '.' || frag_tab.table_name || ' disable row movement;';
                                    
       -- append that data into a plsql table                     
       frag_stats.extend;
@@ -421,12 +416,12 @@ declare
       -- checks whether there are values for bind variables captured. saves them in a separate div if yes.
       l_query_binds := get_binds(line.sql_id, line.child_address);      
       if length(l_query_binds) > 1 then
-        l_all_binds := l_all_binds || '<div id="binds-' || line.sql_id || '-' || line.child_address || '" class="hidden">' || l_query_binds || '</div>';
+        l_all_binds := l_all_binds || '<div id="binds-' || line.sql_id || '-' || to_char(line.child_address) || '" class="hidden">' || l_query_binds || '</div>';
       end if;
       l_query_binds := '';
       
       -- saves query text into a standalone div in a clob where other sqls are being stored
-      queries := queries || '<div id="sql-' || line.sql_id || '-' || to_char(line.child_address) || '" class="hidden">' || escape_html_clob(line.sql_fulltext) || '</div>' || chr(10);
+      queries := queries || '<div id="sql-' || line.sql_id || '-' || to_char(line.child_address) || '" class="hidden">' || escape_html_clob(line.sql_fulltext) || '</div>';
     end loop;
     dbms_output.put_line('</table>');
     dbms_output.put_line(l_all_binds);
