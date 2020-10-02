@@ -226,10 +226,7 @@ declare
   begin
     for f_idx in c_frag_idx loop
       exit when l_idx_cnt = g_max_frag_idx_cnt;
-      /*
-      Check only indexes which size is 20% of table size or more
-      (this check is somehow quicker here than in the query)
-      */
+      -- Now, analyze all the indexes we've found
       declare
         ignore_index exception;
       begin
@@ -239,6 +236,7 @@ declare
           when others then
             raise ignore_index; -- it fails often because of index appeared to be busy
         end;
+        -- l_ratio = (number of deleted rows in an index / number of index rows) in percents
         select round((del_lf_rows/lf_rows) * 100, 2), height, lf_blks, lf_rows
           into l_ratio, l_height, l_lf_blks, l_lf_rows
           from index_stats

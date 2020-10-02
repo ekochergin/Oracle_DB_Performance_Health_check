@@ -33,7 +33,7 @@ declare
   g_max_stats_cnt constant number := 20; -- max number of performance stats to display
   
   /*
-  prints head and title tags.
+  prints html head and title tags to the output.
   Parameter:
       p_title_name is the value that goes into <title> tag
   */
@@ -50,7 +50,7 @@ declare
   end print_header;
   
   /*
-  function returns concatenated bind values captured for a query covered with div tags having a unique id
+  function returns concatenated bind values captured for a query covered with div tag having a unique id
     parameters: p_sqlid         = v$sql.sql_id
                 p_child_address = v$sql.child_address
   */
@@ -222,6 +222,7 @@ declare
   begin
     for f_idx in c_frag_idx loop
       exit when l_idx_cnt = g_max_frag_idx_cnt;
+      -- Now, analyze all the indexes we've found
       declare
         ignore_index exception;
       begin
@@ -231,6 +232,8 @@ declare
           when others then
             raise ignore_index; -- it fails often because of index appeared to be busy
         end;
+        
+        -- l_ratio = (number of deleted rows in an index / number of index rows) in percents
         select round((del_lf_rows/lf_rows) * 100, 2), height, lf_blks, lf_rows
           into l_ratio, l_height, l_lf_blks, l_lf_rows
           from index_stats
@@ -287,7 +290,7 @@ declare
     fs4_blocks  number;  fs4_bytes  number;
     full_blocks number;  full_bytes number;
 
-    -- 50 most fragmented tables    
+    -- 50 most fragmented tables (can be set via g_max_frag_tab_cnt)
     cursor c_frag_tables is
       select round((1 - (dt.avg_row_len * dt.num_rows) / (dt.blocks * p.value)) * 100, 2) frag_rate_pct,
              dt.table_name,
