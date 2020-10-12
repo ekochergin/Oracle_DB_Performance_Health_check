@@ -269,7 +269,7 @@ declare
     end loop;
     
     l_dummy := print_plsql_table('frag-indexes-stats',
-                               '<th>Owner</th><th>Index name</th><th>Index size</th><th>Tab size</th><th>ratio</th><th>Tree''s height</th><th>Data blocks</th><th>Values</th><th>How to fix</th',
+                               '<th>Owner</th><th>Index name</th><th>Index size, MB</th><th>Tab size, MB</th><th>Frag ratio</th><th>Tree''s height</th><th>Data blocks</th><th>Values</th><th>How to fix</th',
                                l_indx_stats);
   end print_frag_indexes;
   
