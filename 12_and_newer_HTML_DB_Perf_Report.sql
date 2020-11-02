@@ -299,7 +299,8 @@ declare
         from dba_users u,
              dba_tables dt,
              dba_segments ds,
-             v$parameter p
+             v$parameter p,
+             dba_tab_statistics dts -- filters out table having stale statistics
        where dt.owner = u.username
          and dt.table_name = ds.segment_name
          and dt.owner = ds.owner
@@ -309,6 +310,9 @@ declare
          and dt.avg_row_len > 0
          and p.name = 'db_block_size'
          and round((1 - (dt.avg_row_len * dt.num_rows) / (ds.blocks * p.value)) * 100, 2) > 20 -- filters out tables having small fragm. rate
+		 and dts.table_name (+) = dt.table_name
+         and dts.owner (+) = dt.owner
+         and nvl(dts.stale_stats, 'NO') = 'NO'
        order by frag_rate_pct desc
        fetch first g_max_frag_tab_cnt rows with ties;   
        
