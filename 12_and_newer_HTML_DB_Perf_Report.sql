@@ -292,7 +292,7 @@ declare
 
     -- 50 most fragmented tables (can be set via g_max_frag_tab_cnt)
     cursor c_frag_tables is
-      select round((1 - (dt.avg_row_len * dt.num_rows) / (dt.blocks * p.value)) * 100, 2) frag_rate_pct,
+      select round((1 - (dt.avg_row_len * dt.num_rows) / (ds.blocks * p.value)) * 100, 2) frag_rate_pct,
              dt.table_name,
              ds.blocks,
              dt.owner
