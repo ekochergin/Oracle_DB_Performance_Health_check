@@ -296,28 +296,30 @@ declare
     -- 50 most fragmented tables    
     cursor c_frag_tables is
       select * 
-      from (select round((1 - (dt.avg_row_len * dt.num_rows) / (dt.blocks * p.value)) * 100, 2) frag_rate_pct,
+      from (select round((1 - (dt.avg_row_len * dt.num_rows) / (ds.blocks * p.value)) * 100, 2) frag_rate_pct,
                    dt.table_name,
                    ds.blocks,
                    dt.owner
               from dba_tables dt,
                    dba_segments ds,
-                   v$parameter p
-             where dt.owner not in ('SYS', 'SYSTEM', 'SYSMAN', 'DBSNMP', 'ANONYMOUS', 'APEX_030200', 'APEX_PUBLIC_USER', 
+                   v$parameter p,
+                   dba_tab_statistics dts
+             where ds.owner = dt.owner
+               and ds.segment_name = dt.table_name
+               and dt.owner not in ('SYS', 'SYSTEM', 'SYSMAN', 'DBSNMP', 'ANONYMOUS', 'APEX_030200', 'APEX_PUBLIC_USER', 
                                     'APPQOSSYS', 'BI', 'CTXSYS', 'DIP', 'DVSYS', 'EXFSYS', 'FLOWS_FILES',
                                     'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                     'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                     'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
                                     'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB')
-               and dt.blocks > 10000 -- filter tiny tables out
+               and ds.blocks > 10000 -- filter tiny tables out
                and dt.num_rows > 0 
                and dt.avg_row_len > 0
                and p.name = 'db_block_size'
-               and not exists (select 1 -- since stats data are being used to find fragmented tables there is a need to exclude tables having stale stats
-                                 from dba_tab_statistics dts
-                                where dts.stale_stats = 'YES'
-                                  and dts.table_name = dt.table_name)
-               and round((1 - (dt.avg_row_len * dt.num_rows)/(dt.blocks * p.value)) * 100, 2) > 20 -- don't let table with small fragm. rate to bother us
+               and dts.table_name (+) = dt.table_name
+               and dts.owner (+) = dt.owner
+               and nvl(dts.stale_stats, 'NO') = 'NO'
+               and round((1 - (dt.avg_row_len * dt.num_rows)/(ds.blocks * p.value)) * 100, 2) > 20 -- don't let table with small fragm. rate to bother us
              order by frag_rate_pct desc)
          where rownum <= g_max_frag_tab_cnt;
   begin
