@@ -180,11 +180,17 @@ declare
   Parameter:
       p_id - html-id of the table the button will be attached to
   */
-  procedure print_collect_commands_button(p_id varchar2)
+  procedure print_collect_commands_button(p_id varchar2, p_delimiter varchar2 default null)
   is
+    l_parameters varchar2(1000);
   begin
+    l_parameters := '''' || p_id || '''';
+	if p_delimiter is not null then
+	  l_parameters := l_parameters || ', ''' || p_delimiter || '''';
+	end if;
+  
     dbms_output.put_line('<div class="collect-cmd-btn">');
-    dbms_output.put_line('<button class="collect-cmd" onclick="collectCommands(''' || p_id || ''')">Show all commands in a popup</button>');
+    dbms_output.put_line('<button class="collect-cmd" onclick="collectCommands(' || l_parameters || ')">Show all commands in a popup</button>');
     dbms_output.put_line('</div>');
   end;
   
@@ -667,7 +673,7 @@ begin
     window.scrollTo(0, scrollY); // return scroll to the position user scrolled before open popup
   }
   // parses the table, assembles all the attributes for each lines'' showCommands and displays it in a popup
-    function collectCommands(pTabId){
+    function collectCommands(pTabId, pDivider){
     const CMD_START = "showCommand(''";
     const CMD_END = ";";
     let cmdCollect = "";
@@ -678,6 +684,10 @@ begin
       let rawCmd = rowCells[rowCells.length - 1].children[0].onclick.toString(); //get onclick event as a string
       
       cmdCollect += rawCmd.substring(rawCmd.indexOf(CMD_START) + CMD_START.length, rawCmd.lastIndexOf(CMD_END) + CMD_END.length) + "<br>";
+	  // divide commands with given divider. Skip if not
+	  if(pDivider){
+	    cmdCollect += pDivider + "<br>";
+	  }
     }
     showCommand(cmdCollect.split("\\").join("")); // a quick way to remove all "\"s from string. it is quick for a developer, not for a browser
   }';
@@ -706,12 +716,12 @@ begin
     -- fragmented indexes
     dbms_output.put_line('<h2><li>Top ' || g_max_frag_idx_cnt || ' fragmented indexes</li></h2>');
     print_frag_indexes();
-    print_collect_commands_button('frag-indexes-stats');
+    print_collect_commands_button('frag-indexes-stats', '-----------------');
     
     -- fragmented tables
     dbms_output.put_line('<h2><li>Top ' || g_max_frag_tab_cnt || ' fragmented tables</li></h2>');
     print_frag_tables();
-    print_collect_commands_button('frag-table-stats');
+    print_collect_commands_button('frag-table-stats', '-----------------');
     
     -- tables having chained/migrated rows
     dbms_output.put_line('<h2><li>Tables having chained/migrated rows</li></h2>');
