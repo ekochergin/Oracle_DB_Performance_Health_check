@@ -224,7 +224,7 @@ declare
                              'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                              'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                              'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                             'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB')
+                             'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS')
          and t.blocks > 10000
          and round(idx_seg.blocks / tab_seg.blocks * 100, 2) > 20
        order by idx_seg.blocks / tab_seg.blocks desc;
@@ -317,7 +317,7 @@ declare
                                     'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                     'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                     'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                                    'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB')
+                                    'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS')
                and ds.blocks > 10000 -- filter tiny tables out
                and dt.num_rows > 0 
                and dt.avg_row_len > 0
@@ -465,7 +465,7 @@ declare
                                                'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                                'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                                'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                                               'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB');
+                                               'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS');
     dummy := simple_html_table('stale-tables', 
                                '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
                                c_stale_tabs);
@@ -501,7 +501,7 @@ declare
                                                 'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                                 'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                                 'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                                                'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB');
+                                                'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS');
     dummy := simple_html_table('stale-indexes',
                                '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
                                c_stale_indxs);
@@ -534,7 +534,7 @@ declare
                                                  'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                                  'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                                  'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                                                 'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB')
+                                                 'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS')
                                and t.num_rows > 0
                                and t.chain_cnt/t.num_rows > 0.05 -- chained ratio greater than 5%
                              order by chain_cnt desc;
