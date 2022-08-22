@@ -465,7 +465,8 @@ declare
                                                'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                                'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                                'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                                               'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS');
+                                               'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS')
+                           order by last_analyzed;
     dummy := simple_html_table('stale-tables', 
                                '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
                                c_stale_tabs);
@@ -501,7 +502,8 @@ declare
                                                 'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                                 'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                                 'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                                                'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS');
+                                                'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS')
+                            order by last_analyzed;
     dummy := simple_html_table('stale-indexes',
                                '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
                                c_stale_indxs);

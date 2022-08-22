@@ -453,7 +453,8 @@ declare
                                  dba_users u 
                            where s.owner = u.username
                              and s.stale_stats = 'YES'
-                             and u.oracle_maintained = 'N';
+                             and u.oracle_maintained = 'N'
+                           order by last_analyzed;
     dummy := simple_html_table('stale-tables', 
                                '<th> owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>', 
                                c_stale_tabs);
@@ -486,7 +487,8 @@ declare
                                   dba_users u
                            where s.owner = u.username
                              and s.stale_stats = 'YES'
-                             and u.oracle_maintained = 'N';
+                             and u.oracle_maintained = 'N'
+                           order by last_analyzed;                             
     dummy := simple_html_table('stale-indexes',
                                '<th> owner </th><th> index name </th><th> table owner </th><th> table name </th><th> object type </th><th> last analyzed date </th><th> how to fix </th>',
                                c_stale_indxs);
