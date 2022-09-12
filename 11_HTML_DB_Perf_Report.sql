@@ -224,7 +224,7 @@ declare
                              'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                              'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                              'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                             'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS')
+                             'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS', 'PERFSTAT')
          and t.blocks > 10000
          and round(idx_seg.blocks / tab_seg.blocks * 100, 2) > 20
        order by idx_seg.blocks / tab_seg.blocks desc;
@@ -317,7 +317,7 @@ declare
                                     'HR', 'IX', 'LBACSYS', 'MDDATA', 'MDSYS', 'MGMT_VIEW', 'OE', 'ORDPLUGINS', 
                                     'ORDSYS', 'ORDDATA', 'OUTLN', 'ORACLE_OCM', 'OWBSYS', 'OWBSYS_AUDIT',
                                     'PM', 'SCOTT', 'SH', 'SI_INFORMTN_SCHEMA', 'SPATIAL_CSW_ADMIN_USR', 
-                                    'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS')
+                                    'SPATIAL_WFS_ADMIN_USR', 'WMSYS', 'XDB', 'APEX_040200', 'OLAPSYS', 'PERFSTAT')
                and ds.blocks > 10000 -- filter tiny tables out
                and dt.num_rows > 0 
                and dt.avg_row_len > 0
